@@ -1,6 +1,6 @@
 # ALL-AI-Cpp
 
-轻量级C++库，实现C++与AI交互
+轻量级C++库，实现C++与AI交互，适用于中转站、官方站的请求。
 
 使用文档请参阅：[ALL-AI-Cpp使用手册](https://ai-cpp-docsify.cpluscottage.top/)
 
@@ -11,4 +11,5 @@
 
 <br>
 
+**正在努力更新英语文档中，**
 **持续更新中......**
