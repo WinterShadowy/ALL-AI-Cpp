@@ -3,8 +3,8 @@
 
 using namespace std;
 
-std::string url = "https://api.cpluscottage.top/v1/chat/completions";
-std::string api_key = "sk-j4qyj46AJwWz01LNosZgqmIbbiQAYYbXIdFvBt9LeF50nSoU";
+std::string url = "YOUR_URL";
+std::string api_key = "YOUR_API_KEY";
 
 int main()
 {
