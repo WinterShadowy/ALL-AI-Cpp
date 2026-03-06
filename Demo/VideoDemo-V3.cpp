@@ -1,4 +1,6 @@
 #include "ALL-AI-V3.hpp"
+#include <thread>
+#include <chrono>
 
 std::string url = "YOUR_URL";
 std::string api_key = "YOUR_API_KEY";
@@ -41,7 +43,7 @@ int main()
 		nlohmann::json _out = ai.SendRequestFromBuilder_Get();
 		std::cout << "Get " << i << "\n json: ==> " << _out.dump(2) << std::endl;
 		
-		Sleep(2500);
+		std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 	}
 
 	return 0;
