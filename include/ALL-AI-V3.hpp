@@ -200,7 +200,7 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: setValue
+		 Function: SetValue
 		 Description: 设置json某个字段指定的值 - 接口
 		 Parameters:
 			 - _T_Value: 需要设置的值
@@ -224,7 +224,7 @@ namespace ALL_AI
 		 Description: 设置json某个字段指定的值 - 接口的实现
 		 Parameters:
 			 - nlohmann::json: 一个json对象
-			 - const T&: 需要设置的值
+			 - T&&: 一个值，作为json字段的值
 			 - const std::string&: 一个字符串，作为json的字段，作为字段的索引
 		 Return: 设置成功返回true，否则返回false
 		 ============================================================================
@@ -245,10 +245,10 @@ namespace ALL_AI
 		   _setValue(j, 42, "a", "b", "c") 等价于 j["a"]["b"]["c"] = 42
 		   仅当整条路径上的所有中间对象都已存在时才写入，否则放弃并返回 false。
 		 Parameters:
-		   - nlohmann::json _json : 待修改的 json 对象（按值传递，内部副本）
-		   - const T& val         : 要写入的最终值
-		   - const std::string& first : 路径上的第一个键
-		   - Args... rest         : 剩余键（可变参数包），长度可为 0
+		   - nlohmann::json: 待修改的 json 对象（按值传递，内部副本）
+		   - T&&: 要写入的最终值
+		   - const std::string&: 路径上的第一个键
+		   - Args&&...: 剩余键（可变参数包），长度可为 0
 		 Return:
 		   - true  – 成功找到叶子节点并完成赋值
 		   - false – 路径中任一中间节点不存在，或中途遇到非对象类型，写入失败
@@ -349,10 +349,10 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: getValueFromeJson
+		 Function: GetValue
 		 Description: 获取json某个字段指定的值 - 接口
 		 Parameters:
-		   - Args...: 剩余键（可变参数包），长度可为 0，作为索引
+		   - _Keys...: 剩余键（可变参数包），长度可为 0，作为索引
 		 Return: 获取成功返回指定类型的值，否则返回与一个空类型
 		 ============================================================================
 		*/
@@ -365,11 +365,11 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: _setValue
-		 Description: 设置json某个字段指定的值 - 接口中间层
+		 Function: _getValue
+		 Description: 获取json某个字段指定的值 - 接口中间层
 		 Parameters:
-		   - nlohmann::json _json : 待修改的 json 对象（按值传递，内部副本）
-		   - const std::string&: 指定的键
+		   - nlohmann::json&: 待获取值的 json 对象（按值传递，内部副本）
+		   - _Key&&: 指定的键
 		 Return: 函数执行成功返回一个特化的值，否则返回空特化值
 		 ============================================================================
 		*/
@@ -422,9 +422,9 @@ namespace ALL_AI
 		 Description: 设置json某个字段指定的值 - 接口中间层
 		   仅当整条路径上的所有中间对象都已存在时才写入，否则放弃并返回 false。
 		 Parameters:
-		   - nlohmann::json _json : 待获取值的 json 对象
-		   - const std::string& first : 路径上的第一个键
-		   - Args... rest         : 剩余键（可变参数包），长度可为 0
+		   - nlohmann::json&: 待获取值的 json 对象
+		   - _First&&: 路径上的第一个键
+		   - Args&&...: 剩余键（可变参数包），长度可为 0
 		 Return: 获取成功返回对应的类型的数据，否则返回一个空数据
 		 ============================================================================
 		*/
@@ -433,6 +433,7 @@ namespace ALL_AI
 		{
 			nlohmann::json next_json = nullptr;
 
+			// 根据first的类型判断是数组索引还是对象键，并进行相应的访问和错误处理
 			if constexpr (std::is_integral_v<std::decay_t<_First>>) 
 			{
 				// 数组索引
@@ -457,6 +458,7 @@ namespace ALL_AI
 				// 对象键
 				if (!_json.contains(first)) 
 				{
+					// 根据错误抛出方式处理错误
 					if(this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
 					{
 						throw std::out_of_range("Key not found: " + std::string(first));
@@ -528,8 +530,8 @@ namespace ALL_AI
 		 Function: PushBack
 		 Description: 向消息数组中添加消息
 		 Parameters:
-			 - _role: 消息角色
-			 - _content: 消息内容
+			 - const Role&: 消息角色
+			 - const std::string&: 消息内容
 		 Return: 无返回值
 		 ============================================================================
 		*/
@@ -704,8 +706,8 @@ namespace ALL_AI
 			 Function: SendRequest
 			 Description: 发送HTTP请求
 			 Parameters:
-			   - HttpMethod method: HTTP请求方法
-			   - const nlohmann::json request_json: 一个指向nlohmann::json对象的指针，表示请求的JSON数据
+			   - HttpMethod: HTTP请求方法
+			   - const nlohmann::json: 一个指向nlohmann::json对象的指针，表示请求的JSON数据
 			 Return: 返回一个nlohmann::json，表示回复内容
 			 ============================================================================
 			*/
@@ -852,7 +854,7 @@ namespace ALL_AI
 			 Function: SetErrorCallbackFunction
 			 Description: 设置错误回调函数
 			 Parameters:
-			   - std::function<void(const std::string&)> callback: 一个接受错误信息的回调函数
+			   - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数
 			 Return: 无返回值
 			 ============================================================================
 			*/
@@ -866,7 +868,7 @@ namespace ALL_AI
 			 Function: SetErrorThrow
 			 Description: 设置错误抛方式
 			 Parameters:
-			   - 
+			   - ALL_AI_ErrorThrow: 错误抛出方式
 			 Return: 无
 			 ============================================================================
 			*/
@@ -880,7 +882,7 @@ namespace ALL_AI
 			 Function: SetErrorThrowCallbackFunction
 			 Description: 设置错误抛出回调函数
 			 Parameters:
-			   - std::function<void(const std::string_view& message)> callback_func: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
+			   - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
 			 Return: 无
 			 ============================================================================
 			*/
@@ -946,9 +948,9 @@ namespace ALL_AI
 		 Description: 构造函数
 		 Parameters:
 			 - std::shared_ptr<IHttpTransport> transport: 一个共享指针，指向一个实现了IHttpTransport接口的对象，用于处理HTTP请求
-			 - const std::string& url: 一个字符串，表示API站的URL
-			 - const std::string& api_key: 一个字符串，表示API站的API Key
-			 - const ALL_AI_ErrorThrow all_ai_error_throw: 一个枚举值，表示错误抛出方式
+			 - const std::string&: 一个字符串，表示API站的URL
+			 - const std::string&: 一个字符串，表示API站的API Key
+			 - const ALL_AI_ErrorThrow: 一个枚举值，表示错误抛出方式
 		 Return: 无
 		 ============================================================================
 		*/
@@ -977,7 +979,7 @@ namespace ALL_AI
 		 Function: SetErrorThrowCallbackFunction
 		 Description: 设置错误抛出回调函数
 		 Parameters:
-			 - std::function<void(const std::string_view& message)> callback_func: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
+			 - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
 		 Return: 无返回值
 		 ============================================================================
 		*/
@@ -1100,6 +1102,17 @@ namespace ALL_AI
 			return this->m_initialized;
 		}
 
+		 /*
+		 ============================================================================
+		 Function: ReloadAI
+		 Description: 重新加载AI，进行一些必要的设置和准备工作，
+		 Parameters: 
+		     - std::string url: API站的URL，如果不为空则更新URL
+			 - std::string api_key: API密钥，如果不为空则更新API密钥
+			 - std::shared_ptr<IHttpTransport> transport: HTTP传输接口，如果不为空则更新HTTP传输接口
+		 Return: 返回一个布尔值，表示初始化是否成功。如果初始化成功，返回true；如果初始化失败，返回false
+		 ============================================================================
+		*/
 		bool ReloadAI(std::string url = "",
 			std::string api_key = "", 
 			std::shared_ptr<IHttpTransport> transport = std::make_shared<HttpTransport::CurlHttpTransport>())
