@@ -8,8 +8,8 @@
 using namespace std;
 
 // 全局配置
-std::string url = "YourURL";
-std::string api_key = "Your API_Key";
+std::string url = "YOUR_URL";
+std::string api_key = "YOUR_API_KEY";
 
 // 用于同步控制台输出
 std::mutex print_mutex;

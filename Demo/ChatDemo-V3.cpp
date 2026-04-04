@@ -28,7 +28,6 @@ int main()
 	ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
 	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
 
-	// 解析响应 - 从解析器中获取回复的内容
 	std::cout << "conetent: " << ai.GetParser().GetValue<std::string>("choices", 0, "message", "content");
 	return 0;
 }

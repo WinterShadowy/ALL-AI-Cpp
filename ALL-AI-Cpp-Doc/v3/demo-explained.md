@@ -167,6 +167,8 @@ int main()
 
 ### Windows (MSVC)
 
+#### 测试系统：Windows 11 专业工作站版
+
 确保在项目属性中：
 1.  **包含目录**: 添加 `include` 目录。
 2.  **链接器 -> 输入**: 添加 `libcurl.lib`。
@@ -174,7 +176,14 @@ int main()
 
 ### Linux (g++)
 
+#### 测试系统：Ubuntu 22.04
+
 ```bash
-g++ -o chat_demo Demo/ChatDemo-V3.cpp -I include -lcurl
-./chat_demo
+cd /ALL-AI-Cpp
+
+mkdir build && cd build
+
+cmake ..
+
+make
 ```

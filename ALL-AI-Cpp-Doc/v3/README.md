@@ -17,3 +17,5 @@
   * [JSON 工具 (Json Tools)](/v3/api/json-tools.md)
   * [HTTP 传输 (Http Transport)](/v3/api/transport.md)
 * [示例 Demo (Demo Examples)](/v3/demo-explained.md)
+* [设计架构 (Design Architecture)](/v3/design-architecture.md)
+* [更新日志 (Changelog)](/v3/changelog.md)

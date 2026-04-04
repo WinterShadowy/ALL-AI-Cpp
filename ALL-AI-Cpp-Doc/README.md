@@ -18,3 +18,8 @@
 ## API参考文档: 
 
 * [API文档](https://gpt-best.apifox.cn/doc-3530850)
+
+
+<hr>
+
+**部分内容由 ``GitHub Copilot Chat`` 生成**

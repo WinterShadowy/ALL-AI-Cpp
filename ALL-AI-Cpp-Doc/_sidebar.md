@@ -4,6 +4,8 @@
   * [快速上手](v3/getting-started.md)
   * [API 参考](v3/api/README.md)
   * [示例 Demo](v3/demo-explained.md)
+  * [设计架构](v3/design-architecture.md)
+  * [更新日志](v3/changelog.md)
 
 * [ALL-AI-Cpp V2 (停止维护)](v2/README.md)
   * [安装与测试](v2/started/README.md)

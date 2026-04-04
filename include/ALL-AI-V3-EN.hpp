@@ -10,22 +10,22 @@
 													 |_|   |_|
 
 *
-*   很高兴您的使用
-*
-*	I'm glad you're using it
+*   Thank you for using this library.
 *
 * ====================================================================================================
 *
-*   声明/开发者的话：
-*   1. 开发者并非是AI领域（专业）的人，能力有限，望您海涵我的不足
-*	2. 开发者正在求职（专业：计算机科学与技术），如果您愿意为我提供一个机会（岗位），可通过下方邮箱联系
-*   3. 开源协议： MIT
+*   Developer's notes:
+*   1. The developer is not an AI specialist, and my abilities are limited. Thank you for your understanding.
+*   2. The developer is currently seeking a job (major: Computer Science and Technology). If you would like to offer an opportunity, please contact me via the email below.
+*   3. Open-source license: MIT
 *
-*	本库在线文档: https://ai-cpp-docsify.cpluscottage.top/
-*	开发者个人博客: https://blog.wang-sz.cn
-*	反馈/催更/交流邮箱: about@wang-sz.cn
+*   Online documentation: https://ai-cpp-docsify.cpluscottage.top/
+*   Personal blog: https://blog.wang-sz.cn
+*   Feedback / updates / contact email: about@wang-sz.cn
 *
-*   如果本库对您有所帮助，您不妨给个star支持一下，您的star是我最大的动力！
+*   If this library helps you, please consider giving it a star. Your support is my greatest motivation!
+*   
+*   ！！！Translation from OpenAI (GPT-4o-mini)！！！
 */
 
 
@@ -63,18 +63,18 @@
 namespace ALL_AI
 {
 
-	// HTTP方法枚举，目前仅支持基于libcurl的会话
+	// HTTP method enumeration. Currently only libcurl-based sessions are supported.
 	enum class HttpMethod {
 		POST,
 		GET
 	};
 
-	// 错误抛出方式
+	// Error reporting modes
 	enum class ALL_AI_ErrorThrow {
-		ALL_AI_PRINT_ERROR,			// 通过打印错误信息
-		ALL_AI_CALLBACK_FUNCTION,	// 通过回调函数返回错误信息
-		ALL_AI_EXCEPTION_THROWING,	// 通过抛出异常的方式返回错误信息
-		ALL_AI_NO_ERROR_THROW		// 不抛出错误
+		ALL_AI_PRINT_ERROR,			// Report errors by printing messages
+		ALL_AI_CALLBACK_FUNCTION,	// Report errors through a callback function
+		ALL_AI_EXCEPTION_THROWING,	// Report errors by throwing exceptions
+		ALL_AI_NO_ERROR_THROW		// Do not report errors
 	};
 
 	class ThrowError {
@@ -92,10 +92,10 @@ namespace ALL_AI
 	/*
 	============================================================================
 	Function: SetThrowErrorCallbackFunction
-	Description: 设置错误抛出的回调函数
+	Description: Set the callback function used for error reporting
 	Parameters:
-		- std::function<void(const std::string_view& message)> callback_function: 一个接受错误信息的回调函数
-	Return: 无返回值
+		- std::function<void(const std::string_view& message)> callback_function: A callback that receives error messages
+	Return: No return value
 	============================================================================
 	*/
 	void ThrowError::SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
@@ -108,7 +108,7 @@ namespace ALL_AI
 		return;
 	}
 
-	// 请求构建策略
+	// Request builder strategy
 	class IRequestBuilderStrategy : public ThrowError {
 	public:
 		virtual ~IRequestBuilderStrategy() = default;
@@ -117,7 +117,7 @@ namespace ALL_AI
 		virtual nlohmann::json GetEmptyBuilder() = 0;
 	};
 
-	// 响应解析策略
+	// Response parser strategy
 	class IResponseParserStrategy : public ThrowError {
 	public:
 		virtual ~IResponseParserStrategy() = default;
@@ -126,9 +126,9 @@ namespace ALL_AI
 		virtual nlohmann::json GetData() = 0;
 	};
 
-	// Json操作相关的类和函数
+	// Classes and functions related to JSON operations
 	namespace JsonOperator {
-		// JSON请求构建器
+		// JSON request builder
 		class JsonRequestBuilder : public IRequestBuilderStrategy {
 
 		public:
@@ -136,10 +136,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: GetBuilder
-			 Description: 获取json构建器
+			 Description: Retrieve the JSON builder
 			 Parameters:
-				 - 无参数: 无释义
-			 Return: 返回json
+				 - None: No parameters
+			 Return: Returns the JSON object
 			 ============================================================================
 			*/
 			virtual nlohmann::json GetBuilder() override
@@ -151,10 +151,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: ClearBuilder
-			 Description: 清空json
+			 Description: Clear the JSON builder
 			 Parameters:
-				 - 无参数: 无释义
-			 Return: 无返回值
+				 - None: No parameters
+			 Return: No return value
 			 ============================================================================
 			*/
 			virtual void ClearBuilder() override
@@ -166,10 +166,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: GetEmptyBuilder
-			 Description: 获取空json
+			 Description: Get an empty JSON object
 			 Parameters:
-				 - 无参数: 无释义
-			 Return: 返回一个空json对象
+				 - None: No parameters
+			 Return: Returns an empty JSON object
 			 ============================================================================
 			*/
 			virtual nlohmann::json GetEmptyBuilder() override
@@ -177,16 +177,16 @@ namespace ALL_AI
 				return nlohmann::json{};
 			}
 
-			// 设置json某个字段值
+			// Set the value of a specific JSON field
 			template <typename _T_Value, typename... Args>
 			bool SetValue(_T_Value, Args... _keys);
 
 		private:
-			// 设置json某个字段的值：递归的结束层
+			// Base case of the recursive JSON field setter
 			template <typename T>
 			bool _setValue(nlohmann::json& _json, T&& val, const std::string& key);
 
-			//设置json某个字段的值：递归中间层
+			// Recursive intermediate case for setting a JSON field
 			template <typename T, typename... Args>
 			bool _setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest);
 
@@ -199,11 +199,11 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SetValue
-		 Description: 设置json某个字段指定的值 - 接口
+		 Description: Set the value of a specific JSON field - interface
 		 Parameters:
-			 - _T_Value: 需要设置的值
-			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
-		 Return: 设置成功返回true，否则返回false
+			 - _T_Value: The value to be assigned
+			 - Args...: Variable arguments that must be strings and are used as keys in the JSON path
+		 Return: Returns true on success; otherwise returns false
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
@@ -219,12 +219,12 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _setValue(
-		 Description: 设置json某个字段指定的值 - 接口的实现
+		 Description: Implementation of setting a specific JSON field
 		 Parameters:
-			 - nlohmann::json: 一个json对象
-			 - T&&: 一个值，作为json字段的值
-			 - const std::string&: 一个字符串，作为json的字段，作为字段的索引
-		 Return: 设置成功返回true，否则返回false
+			 - nlohmann::json: A JSON object
+			 - T&&: A value used as the JSON field value
+			 - const std::string&: A string used as the JSON key
+		 Return: Returns true on success; otherwise returns false
 		 ============================================================================
 		*/
 
@@ -238,38 +238,37 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _setValue
-		 Description: 设置json某个字段指定的值 - 接口中间层
-		   通过递归方式，支持“深度路径”写入：例如
-		   _setValue(j, 42, "a", "b", "c") 等价于 j["a"]["b"]["c"] = 42
-		   仅当整条路径上的所有中间对象都已存在时才写入，否则放弃并返回 false。
+		 Description: Recursive intermediate layer for setting a specific JSON field
+		   Supports writing to a deep path recursively, for example:
+		   _setValue(j, 42, "a", "b", "c") is equivalent to j["a"]["b"]["c"] = 42
 		 Parameters:
-		   - nlohmann::json: 待修改的 json 对象（按值传递，内部副本）
-		   - T&&: 要写入的最终值
-		   - const std::string&: 路径上的第一个键
-		   - Args&&...: 剩余键（可变参数包），长度可为 0
+		   - nlohmann::json: The JSON object to modify
+		   - T&&: The final value to write
+		   - const std::string&: The first key in the path
+		   - Args&&...: Remaining keys (variadic arguments), which may be empty
 		 Return:
-		   - true  – 成功找到叶子节点并完成赋值
-		   - false – 路径中任一中间节点不存在，或中途遇到非对象类型，写入失败
+		   - true  - The assignment succeeds
+		   - false - The write fails
 		 ============================================================================
 		*/
 		template <typename T, typename... Args>
 		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest)
 		{
-			// 直接继续递归，避免拷贝
+			// Continue recursion directly to avoid copying
 			return _setValue(_json[first], std::forward<T>(val), std::forward<Args>(rest)...);
 		}
 
-		// json解析策略
+		// JSON parsing strategy
 		class JsonResponceParser : public IResponseParserStrategy {
 		public:
 
 			/*
 			 ============================================================================
 			 Function: Parse
-			 Description: json解析策略
+			 Description: JSON parsing strategy
 			 Parameters:
-				 - nlohmann::json: 一个json对象
-			 Return: 无返回值
+				 - nlohmann::json: A JSON object
+			 Return: No return value
 			 ============================================================================
 			*/
 			virtual void Parse(const nlohmann::json& response) override
@@ -281,10 +280,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: Parse
-			 Description: json解析策略
+			 Description: JSON parsing strategy
 			 Parameters:
-				 - const std::string&: 一个json字符串
-			 Return: 无返回值
+				 - const std::string&: A JSON string
+			 Return: No return value
 			 ============================================================================
 			*/
 			virtual void Parse(const std::string& response) override
@@ -320,10 +319,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: GetData
-			 Description: 获取json
+			 Description: Get the parsed JSON data
 			 Parameters:
-				 - 无参数: 无释义
-			 Return: 返回一个json对象，表示解析后的数据
+				 - None: No parameters
+			 Return: Returns a JSON object containing the parsed data
 			 ============================================================================
 			*/
 			virtual nlohmann::json GetData() override
@@ -331,17 +330,17 @@ namespace ALL_AI
 				return this->m_response_json;
 			}
 
-			// 获取某个字段的值 - 重载
+			// Get the value of a specific field - overload
 			template <typename _T_Type, typename... _Keys>
 			_T_Type GetValue(_Keys... _keys);
 
 		private:
 
-			// 获取json某个字段的值，递归结束层
+			// Base case for recursively retrieving a JSON field value
 			template <typename _T_Type, typename _Key>
 			_T_Type _getValue(const nlohmann::json& _json, _Key&& key);
 
-			// 获取json某个字段的值，递归中间层
+			// Recursive intermediate case for retrieving a JSON field value
 			template <typename _T_Type, typename _First, typename... Args>
 			_T_Type _getValue(const nlohmann::json& _json, _First&& first, Args... rest);
 
@@ -353,10 +352,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: GetValue
-		 Description: 获取json某个字段指定的值 - 接口
+		 Description: Get the value of a specific JSON field - interface
 		 Parameters:
-		   - _Keys...: 剩余键（可变参数包），长度可为 0，作为索引
-		 Return: 获取成功返回指定类型的值，否则返回与一个空类型
+		   - _Keys...: Remaining keys (variadic arguments), which may be empty and are used as indexes or keys
+		 Return: Returns a value of the specified type on success; otherwise returns a default value
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename... _Keys>
@@ -369,11 +368,11 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _getValue
-		 Description: 获取json某个字段指定的值 - 接口中间层
+		 Description: Base layer for retrieving the value of a specific JSON field
 		 Parameters:
-		   - nlohmann::json&: 待获取值的 json 对象（按值传递，内部副本）
-		   - _Key&&: 指定的键
-		 Return: 函数执行成功返回一个特化的值，否则返回空特化值
+		   - nlohmann::json&: The JSON object from which the value is retrieved
+		   - _Key&&: The specified key or index
+		 Return: Returns a specialized value on success; otherwise returns a default-constructed value
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename _Key>
@@ -381,7 +380,7 @@ namespace ALL_AI
 		{
 			if constexpr (std::is_integral_v<std::decay_t<_Key>>)
 			{
-				// 数组索引
+				// Array index
 				if (!_json.is_array() || key < 0 || key >= _json.size())
 				{
 					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
@@ -404,7 +403,7 @@ namespace ALL_AI
 			}
 			else
 			{
-				// 对象键
+				// Object key
 				if (!_json.contains(key))
 				{
 					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
@@ -429,13 +428,12 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _getValue
-		 Description: 设置json某个字段指定的值 - 接口中间层
-		   仅当整条路径上的所有中间对象都已存在时才写入，否则放弃并返回 false。
+		 Description: Recursive intermediate layer for retrieving the value of a specific JSON field
 		 Parameters:
-		   - nlohmann::json&: 待获取值的 json 对象
-		   - _First&&: 路径上的第一个键
-		   - Args&&...: 剩余键（可变参数包），长度可为 0
-		 Return: 获取成功返回对应的类型的数据，否则返回一个空数据
+		   - nlohmann::json&: The JSON object from which the value is retrieved
+		   - _First&&: The first key or index in the path
+		   - Args&&...: Remaining keys (variadic arguments), which may be empty
+		 Return: Returns the requested type on success; otherwise returns a default value
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename _First, typename... Args>
@@ -443,10 +441,10 @@ namespace ALL_AI
 		{
 			nlohmann::json next_json = nullptr;
 
-			// 根据first的类型判断是数组索引还是对象键，并进行相应的访问和错误处理
+			// Determine whether `first` is an array index or an object key and handle access errors accordingly
 			if constexpr (std::is_integral_v<std::decay_t<_First>>)
 			{
-				// 数组索引
+				// Array index
 				if (!_json.is_array() || first < 0 || first >= _json.size())
 				{
 					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
@@ -469,10 +467,10 @@ namespace ALL_AI
 			}
 			else
 			{
-				// 对象键
+				// Object key
 				if (!_json.contains(first))
 				{
-					// 根据错误抛出方式处理错误
+					// Handle the error according to the selected error mode
 					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
 					{
 						throw std::out_of_range("Key not found: " + std::string(first));
@@ -496,11 +494,11 @@ namespace ALL_AI
 		}
 	}
 
-	// Json操作相关的工具类
+	// Utility class for JSON operations
 	class JsonOperatorTools {
 	public:
 
-		// 角色枚举
+		// Role enumeration
 		enum class Role {
 			System,
 			User,
@@ -510,10 +508,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: JsonOperatorTools
-		 Description: 构造函数
+		 Description: Constructor
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 无返回值
+			 - None: No parameters
+		 Return: No return value
 		 ============================================================================
 		*/
 		JsonOperatorTools() {}
@@ -521,10 +519,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: ~JsonOperatorTools
-		 Description: 析构函数
+		 Description: Destructor
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 无返回值
+			 - None: No parameters
+		 Return: No return value
 		 ============================================================================
 		*/
 		~JsonOperatorTools() {}
@@ -532,10 +530,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: GetMessagesArray
-		 Description: 获取消息数组
+		 Description: Get the message array
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个消息数组
+			 - None: No parameters
+		 Return: Returns a message array
 		 ============================================================================
 		*/
 		nlohmann::json::array_t GetMessagesArray()
@@ -546,11 +544,11 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: PushBack
-		 Description: 向消息数组中添加消息
+		 Description: Add a message to the message array
 		 Parameters:
-			 - const Role&: 消息角色
-			 - const std::string&: 消息内容
-		 Return: 无返回值
+			 - const Role&: The message role
+			 - const std::string&: The message content
+		 Return: No return value
 		 ============================================================================
 		*/
 		void PushBackArray(const Role& _role, const std::string& _content)
@@ -564,10 +562,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: PopBack
-		 Description: 从消息数组中删除最后一个消息
+		 Description: Remove the last message from the message array
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 无返回值
+			 - None: No parameters
+		 Return: No return value
 		 ============================================================================
 		*/
 		void PopBackArray()
@@ -583,10 +581,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: RoleToString
-		 Description: 将角色转换为字符串
+		 Description: Convert a role to a string
 		 Parameters:
-			 - Role: 角色
-		 Return: 返回字符串
+			 - Role: The role
+		 Return: Returns a string
 		 ============================================================================
 		*/
 		static std::string RoleToString(Role r)
@@ -608,33 +606,33 @@ namespace ALL_AI
 		std::mutex m_mutex_json;
 	};
 
-	// 抽象HTTP传输接口，定义了发送HTTP请求的方法
+	// Abstract HTTP transport interface that defines how HTTP requests are sent
 	class IHttpTransport {
 	public:
 		IHttpTransport() = default;
 		virtual ~IHttpTransport() = default;
-		// 初始化HTTP传输接口，设置URL、API Key和错误抛出方式
+		// Initialize the HTTP transport interface with the URL, API key, and error handling mode
 		virtual bool Initialize(const std::string& url, const std::string& api_key, const ALL_AI_ErrorThrow all_ai_error_throw) = 0;
-		// 发送HTTP请求
+		// Send an HTTP request
 		virtual nlohmann::json SendRequest(HttpMethod method, const nlohmann::json request_json) = 0;
 
-		// 设置错误回调函数
+		// Set the error callback function
 		virtual void SetErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_func) = 0;
 	};
 
 	namespace HttpTransport
 	{
-		// 基于libcurl的HTTP传输实现
+		// libcurl-based HTTP transport implementation
 		class CurlHttpTransport final : public IHttpTransport {
 		public:
 
 			/*
 			 ============================================================================
 			 Function: CurlHttpTransport
-			 Description: 构造函数
+			 Description: Constructor
 			 Parameters:
-				 - 无参数: 无释义
-			 Return: 无
+				 - None: No parameters
+			 Return: No return value
 			 ============================================================================
 			*/
 			CurlHttpTransport()
@@ -644,17 +642,17 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: ~CurlHttpTransport
-			 Description: 析构函数
+			 Description: Destructor
 			 Parameters:
-				 - 无参数: 无释义
-			 Return: 无
+				 - None: No parameters
+			 Return: No return value
 			 ============================================================================
 			*/
 			~CurlHttpTransport()
 			{
 				if (this->m_curl != nullptr)
 				{
-					// 清理libcurl
+					// Clean up libcurl
 					curl_easy_cleanup(this->m_curl);
 				}
 			}
@@ -662,12 +660,12 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: Initialize
-			 Description: 初始化HTTP传输接口
+			 Description: Initialize the HTTP transport interface
 			 Parameters:
-				 - const std::string& url: HTTP请求的URL
-				 - const std::string& api_key: API密钥
-				 - const ALL_AI_ErrorThrow all_ai_error_throw: 错误抛出方式
-			 Return: 无
+				 - const std::string& url: The URL for the HTTP request
+				 - const std::string& api_key: The API key
+				 - const ALL_AI_ErrorThrow all_ai_error_throw: The error handling mode
+			 Return: Returns true on success; otherwise false
 			 ============================================================================
 			*/
 			virtual bool Initialize(const std::string& url,
@@ -694,11 +692,11 @@ namespace ALL_AI
 				this->m_key = api_key;
 				this->m_error_throw = all_ai_error_throw;
 
-				// 初始化 libcurl
+				// Initialize libcurl
 				this->m_curl = curl_easy_init();
 				if (!this->m_curl)
 				{
-					// 如果初始化失败，根据错误抛出方式处理错误
+					// If initialization fails, handle the error according to the selected error mode
 					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
 					{
 						throw std::runtime_error("CurlHttpTransport: curl_easy_init failed");
@@ -716,11 +714,11 @@ namespace ALL_AI
 
 				if (this->m_curl)
 				{
-					// 设置URL
+					// Set the URL
 					curl_easy_setopt(this->m_curl, CURLOPT_URL, url.c_str());
 					curl_easy_setopt(this->m_curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-					// 忽略SSL
+					// Ignore SSL certificate verification
 					curl_easy_setopt(this->m_curl, CURLOPT_SSL_VERIFYPEER, 0L);
 					curl_easy_setopt(this->m_curl, CURLOPT_SSL_VERIFYHOST, 0L);
 				}
@@ -730,18 +728,18 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: SendRequest
-			 Description: 发送HTTP请求
+			 Description: Send an HTTP request
 			 Parameters:
-			   - HttpMethod: HTTP请求方法
-			   - const nlohmann::json: 一个指向nlohmann::json对象的指针，表示请求的JSON数据
-			 Return: 返回一个nlohmann::json，表示回复内容
+			   - HttpMethod: The HTTP request method
+			   - const nlohmann::json: A JSON object representing the request payload
+			 Return: Returns a nlohmann::json object representing the response
 			 ============================================================================
 			*/
 			virtual nlohmann::json SendRequest(HttpMethod method, const nlohmann::json request_json) override
 			{
 				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
 
-				// 如果初始化失败，则在请求时返回空json
+				// If initialization failed, return an empty JSON object when a request is made
 				if (this->m_curl == nullptr)
 				{
 					return nlohmann::json{};
@@ -788,13 +786,13 @@ namespace ALL_AI
 				headers = curl_slist_append(headers, "Content-Type: application/json");
 				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
 
-				// 清理可能的残留标志
+				// Clear any residual request flags
 				// clear flags
 				curl_easy_setopt(this->m_curl, CURLOPT_POST, 0L);
 				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, nullptr);
 				curl_easy_setopt(this->m_curl, CURLOPT_NOBODY, 0L);
 
-				// 设置请求数据
+				// Set the request payload
 				std::string str_json = request_json.dump();
 				if (method == HttpMethod::POST)
 				{
@@ -809,7 +807,7 @@ namespace ALL_AI
 				curl_easy_setopt(this->m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
 				curl_easy_setopt(this->m_curl, CURLOPT_WRITEDATA, &str_Buffer);
 
-				// 执行请求
+				// Execute the request
 				CURLcode res = curl_easy_perform(this->m_curl);
 				if (res != CURLE_OK)
 				{
@@ -871,10 +869,10 @@ namespace ALL_AI
 					return nlohmann::json{};
 				}
 
-				// 如果解析失败，就尝试解析 SSE 响应
-				// 如果POST请求的stream字段为true
-				// 那么try中使用nlohmann::json::parse函数进行解析必定失败
-				// 故需要尝试解析SSE响应
+				// If standard JSON parsing fails, try to parse the response as SSE instead
+				// When the POST request has `stream` set to true,
+				// parsing with nlohmann::json::parse inside the try block will fail,
+				// so an SSE parsing attempt is required
 				nlohmann::json json_result;
 				try
 				{
@@ -911,10 +909,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: SetErrorCallbackFunction
-			 Description: 设置错误回调函数
+			 Description: Set the error callback function
 			 Parameters:
-			   - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数
-			 Return: 无返回值
+			   - std::function<void(const std::string_view& message)>: A callback function that receives error messages
+			 Return: No return value
 			 ============================================================================
 			*/
 			virtual void SetErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_func) override
@@ -925,10 +923,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: SetErrorThrow
-			 Description: 设置错误抛方式
+			 Description: Set the error handling mode
 			 Parameters:
-			   - ALL_AI_ErrorThrow: 错误抛出方式
-			 Return: 无
+			   - ALL_AI_ErrorThrow: The error handling mode
+			 Return: No return value
 			 ============================================================================
 			*/
 			virtual void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
@@ -939,10 +937,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: SetErrorThrowCallbackFunction
-			 Description: 设置错误抛出回调函数
+			 Description: Set the callback function used for error reporting
 			 Parameters:
-			   - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
-			 Return: 无
+			   - std::function<void(const std::string_view& message)>: A callback function that receives error messages as a string view
+			 Return: No return value
 			 ============================================================================
 			*/
 			void SetErrorThrowCallbackFunction(std::function<void(const std::string_view& message)> callback_func)
@@ -956,10 +954,10 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: Trim
-			 Description: 去除字符串首尾的空白字符
+			 Description: Remove leading and trailing whitespace from a string
 			 Parameters:
-			   - const std::string& input: 输入字符串
-			 Return: 去除首尾空白字符后的字符串
+			   - const std::string& input: The input string
+			 Return: The string after trimming leading and trailing whitespace
 			 ============================================================================
 			*/
 			static std::string Trim(const std::string& input)
@@ -984,19 +982,19 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: TryParseSseResponse
-			 Description: 尝试解析 SSE 响应
+			 Description: Try to parse an SSE response
 			 Parameters:
-			   - const std::string& response: 响应字符串
-			   - nlohmann::json& json_result: 解析后的 JSON 对象
-			 Return: bool: 是否成功解析
+			   - const std::string& response: The response string
+			   - nlohmann::json& json_result: The parsed JSON result
+			 Return: bool: Whether parsing succeeds
 			 ============================================================================
 			*/
 			static bool TryParseSseResponse(const std::string& response, nlohmann::json& json_result)
 			{
 				nlohmann::json chunks = nlohmann::json::array();
 
-				// SSE 响应通常以"data:"开头，并以"\n\n"结尾，表示一个事件的结束。
-				// 要逐行解析响应，提取以"data: "开头的行，并将其内容作为 JSON 进行解析。
+				// SSE responses usually begin with "data:" and end with "\n\n", which marks the end of an event.
+				// Parse the response line by line, extract lines beginning with "data: ", and parse their contents as JSON.
 				size_t start = 0;
 				while (start <= response.size())
 				{
@@ -1013,20 +1011,20 @@ namespace ALL_AI
 						start = end + 1;
 					}
 
-					// 去除行首尾空白
+					// Trim leading and trailing whitespace from the line
 					line = Trim(line);
 					if (line.empty() || line.rfind(":", 0) == 0)
 					{
 						continue;
 					}
 
-					// rfind的原因是因为防止可能存在多个data:
+					// Use rfind to avoid issues when multiple "data:" prefixes appear
 					if (line.rfind("data:", 0) != 0)
 					{
 						continue;
 					}
 
-					// 去除"data: "
+					// Remove the "data: " prefix
 					std::string payload = Trim(line.substr(5));
 					if (payload.empty())
 					{
@@ -1048,7 +1046,7 @@ namespace ALL_AI
 					}
 				}
 
-				// 如果 chunks 为空，说明解析失败，返回 false
+				// If no chunks were collected, parsing failed
 				if (chunks.empty())
 				{
 					return false;
@@ -1060,7 +1058,7 @@ namespace ALL_AI
 				nlohmann::json merged_choices = nlohmann::json::array();
 				std::unordered_map<int, size_t> choice_index_to_pos;
 
-				// 确保每个 choice index 都有一个对应的 merged_choice 对象，如果没有就创建一个新的
+				// Ensure each choice index has a corresponding merged_choice object; create one if needed
 				auto ensure_choice = [&](int index) -> nlohmann::json&
 					{
 						auto it = choice_index_to_pos.find(index);
@@ -1078,7 +1076,7 @@ namespace ALL_AI
 						return merged_choices[it->second];
 					};
 
-				// 合并 chunks 中的 choices
+				// Merge the choices from all chunks
 				for (const nlohmann::json& chunk : chunks)
 				{
 					if (!chunk.is_object() || !chunk.contains("choices") || !chunk["choices"].is_array())
@@ -1086,13 +1084,13 @@ namespace ALL_AI
 						continue;
 					}
 
-					// 合并 chunk 中的 choices
+					// Merge the choices in the current chunk
 					for (const nlohmann::json& choice : chunk["choices"])
 					{
 						int index = choice.value("index", 0);
 						nlohmann::json& merged_choice = ensure_choice(index);
 
-						// 合并 delta
+						// Merge delta
 						if (choice.contains("delta") && choice["delta"].is_object())
 						{
 							const auto& delta = choice["delta"];
@@ -1107,14 +1105,14 @@ namespace ALL_AI
 							}
 						}
 
-						// 合并 text
+						// Merge text
 						if (choice.contains("text") && choice["text"].is_string())
 						{
 							merged_choice["message"]["content"] =
 								merged_choice["message"]["content"].get<std::string>() + choice["text"].get<std::string>();
 						}
 
-						// 合并 finish_reason
+						// Merge finish_reason
 						if (choice.contains("finish_reason"))
 						{
 							merged_choice["finish_reason"] = choice["finish_reason"];
@@ -1122,7 +1120,7 @@ namespace ALL_AI
 					}
 				}
 
-				// 如果merged_choices不为空，将其赋值给json_result的choices字段
+				// If merged_choices is not empty, assign it to json_result["choices"]
 				if (!merged_choices.empty())
 				{
 					json_result["choices"] = merged_choices;
@@ -1134,13 +1132,13 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: WriteCallback
-			 Description: libcurl写数据回调函数，将下载的数据追加到用户指定的std::string中
+			 Description: libcurl write callback that appends downloaded data to the user-specified std::string
 			 Parameters:
-			   - contents: 指向接收到的数据缓冲区
-			   - size: 每个数据块的字节大小
-			   - nmemb: 数据块的个数
-			   - userp: 用户自定义指针，此处指向用于存储数据的std::string对象
-			 Return: 返回实际处理的数据总字节数(size*nmemb)。若返回值与预期不符，libcurl会判定为错误并中止传输
+			   - contents: Pointer to the received data buffer
+			   - size: Byte size of each data block
+			   - nmemb: Number of data blocks
+			   - userp: User-defined pointer; here it points to the std::string used to store data
+			 Return: Returns the total number of bytes processed (size * nmemb). If the return value does not match the expected amount, libcurl treats it as an error and aborts the transfer
 			 ============================================================================
 			*/
 			static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp)
@@ -1171,10 +1169,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: AI
-		 Description: 构造函数
+		 Description: Constructor
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 无
+			 - None: No parameters
+		 Return: No return value
 		 ============================================================================
 		*/
 		explicit AI() {};
@@ -1182,13 +1180,13 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: AI
-		 Description: 构造函数
+		 Description: Constructor
 		 Parameters:
-			 - std::shared_ptr<IHttpTransport> transport: 一个共享指针，指向一个实现了IHttpTransport接口的对象，用于处理HTTP请求
-			 - const std::string&: 一个字符串，表示API站的URL
-			 - const std::string&: 一个字符串，表示API站的API Key
-			 - const ALL_AI_ErrorThrow: 一个枚举值，表示错误抛出方式
-		 Return: 无
+			 - std::shared_ptr<IHttpTransport> transport: A shared pointer to an object implementing `IHttpTransport`, used to handle HTTP requests
+			 - const std::string&: A string representing the API endpoint URL
+			 - const std::string&: A string representing the API key
+			 - const ALL_AI_ErrorThrow: An enum value representing the error handling mode
+		 Return: No return value
 		 ============================================================================
 		*/
 		explicit AI(std::shared_ptr<IHttpTransport> transport,
@@ -1204,10 +1202,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: ~AI
-		 Description: 析构函数
+		 Description: Destructor
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 无
+			 - None: No parameters
+		 Return: No return value
 		 ============================================================================
 		*/
 		~AI() {};
@@ -1215,15 +1213,15 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SetErrorThrowCallbackFunction
-		 Description: 设置错误抛出回调函数
+		 Description: Set the callback function used for error reporting
 		 Parameters:
-			 - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
-		 Return: 无返回值
+			 - std::function<void(const std::string_view& message)>: A callback function that receives error messages as a string view
+		 Return: No return value
 		 ============================================================================
 		*/
 		bool SetErrorThrowCallbackFunction(std::function<void(const std::string_view& message)> callback_func)
 		{
-			// 设置错误抛出方式为回调函数，并保存回调函数
+			// Switch the error handling mode to callback-based reporting and store the callback
 			if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				callback_func != nullptr)
 			{
@@ -1244,10 +1242,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SetURL
-		 Description: 设置API站的URL
+		 Description: Set the API endpoint URL
 		 Parameters:
-			 -  const std::string&: 一个字符串，表示API站的URL
-		 Return: 无返回值
+			 - const std::string&: A string representing the API endpoint URL
+		 Return: No return value
 		 ============================================================================
 		*/
 		void SetURL(const std::string& url)
@@ -1260,10 +1258,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SetKey
-		 Description: 设置API密钥
+		 Description: Set the API key
 		 Parameters:
-			 - const std::string&: 一个字符串，表示API密钥
-		 Return: 无返回值
+			 - const std::string&: A string representing the API key
+		 Return: No return value
 		 ============================================================================
 		*/
 		void SetKey(const std::string& key)
@@ -1276,16 +1274,16 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SetHttpTransport
-		 Description: 设置HTTP传输接口
+		 Description: Set the HTTP transport interface
 		 Parameters:
-			 -
-		 Return:
+			 - std::shared_ptr<IHttpTransport>: The HTTP transport implementation to use
+		 Return: No return value
 		 ============================================================================
 		*/
 		void SetHttpTransport(std::shared_ptr<IHttpTransport> transport)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_config);
-			// 检查传入的传输接口是否为空
+			// Check whether the provided transport interface is null
 			if (transport == nullptr)
 			{
 				return;
@@ -1297,32 +1295,32 @@ namespace ALL_AI
 		/*
 		============================================================================
 		Function: InitAI
-		Description: 初始化AI，主要是进行一些必要的设置和准备工作，例如初始化HTTP传输接口、设置错误抛出方式等
+		Description: Initialize AI by performing the required setup, such as initializing the HTTP transport interface and configuring error handling
 		Parameters:
-			- 无参数: 无释义
-		Return: 返回一个布尔值，表示初始化是否成功。如果初始化成功，返回true；如果初始化失败，返回false
+			- None: No parameters
+		Return: Returns true if initialization succeeds; otherwise returns false
 		============================================================================
 	   */
 		bool InitAI()
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_ai_init);
 
-			// 如果初始化过则直接返回false，表示不需要重复初始化
+			// If AI has already been initialized, return false to avoid repeated initialization
 			if (this->m_initialized == true)
 			{
 				return false;
 			}
-			// 设置构建器与解析器的错误抛出方式
+			// Set the error handling mode for the builder and parser
 			if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				this->m_callback_function != nullptr)
 			{
-				// 这里不需要加锁，因为InitAI不与SendRequest并发（由用户保证或m_initialized标志）
-				// 且Builder/Parser内部有锁
+				// No extra lock is required here because InitAI does not run concurrently with SendRequest
+				// (this is guaranteed by the user or by the m_initialized flag), and Builder/Parser already have internal locks
 				this->m_builder.SetThrowErrorCallbackFunction(this->m_callback_function);
 				this->m_parser.SetThrowErrorCallbackFunction(this->m_callback_function);
 			}
 
-			// 获取配置的副本进行初始化
+			// Create configuration copies for initialization
 			std::string url_copy;
 			std::string key_copy;
 			std::shared_ptr<IHttpTransport> transport_copy;
@@ -1343,19 +1341,19 @@ namespace ALL_AI
 		/*
 		============================================================================
 		Function: ReloadAI
-		Description: 重新加载AI，进行一些必要的设置和准备工作，
+		Description: Reload AI and perform any required setup updates
 		Parameters:
-			- std::string url: API站的URL，如果不为空则更新URL
-			- std::string api_key: API密钥，如果不为空则更新API密钥
-			- std::shared_ptr<IHttpTransport> transport: HTTP传输接口，如果不为空则更新HTTP传输接口
-		Return: 返回一个布尔值，表示初始化是否成功。如果初始化成功，返回true；如果初始化失败，返回false
+			- std::string url: The API endpoint URL. If it is not empty, the URL is updated
+			- std::string api_key: The API key. If it is not empty, the API key is updated
+			- std::shared_ptr<IHttpTransport> transport: The HTTP transport interface. If it is not null, the transport is updated
+		Return: Returns true if reinitialization succeeds; otherwise returns false
 		============================================================================
 	   */
 		bool ReloadAI(std::string url = "",
 			std::string api_key = "",
 			std::shared_ptr<IHttpTransport> transport = std::make_shared<HttpTransport::CurlHttpTransport>())
 		{
-			// 获取配置锁，更新配置
+			// Acquire the configuration lock and update the configuration
 			std::lock_guard<std::mutex> lock(this->m_mutex_config);
 
 			if (!url.empty())
@@ -1371,7 +1369,7 @@ namespace ALL_AI
 				this->m_transport = std::move(transport);
 			}
 
-			// 重新初始化Transport
+			// Reinitialize the transport
 			if (this->m_transport)
 			{
 				return this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw);
@@ -1382,11 +1380,11 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SendRequest
-		 Description: 发送HTTP请求，主要是将用户的请求数据转换为JSON格式，并通过HTTP传输接口发送给服务器，然后接收服务器的回复并返回给用户
+		 Description: Send an HTTP request by converting the user request data to JSON, passing it through the HTTP transport interface, and returning the server response
 		 Parameters:
-			 - HttpMethod method: HTTP请求方法(1.POST 2.GET)
-			 - const nlohmann::json request_json: 一个nlohmann::json对象，表示请求的JSON数据
-		 Return: 返回一个nlohmann::json对象，表示服务器的回复内容。如果请求发送失败或服务器回复无效，返回一个空的nlohmann::json对象
+			 - HttpMethod method: The HTTP request method (1. POST, 2. GET)
+			 - const nlohmann::json request_json: A nlohmann::json object representing the request payload
+		 Return: Returns a nlohmann::json object representing the server response. If the request fails or the response is invalid, an empty nlohmann::json object is returned
 		 ============================================================================
 		*/
 		nlohmann::json SendRequest(HttpMethod method, const nlohmann::json request_json)
@@ -1397,7 +1395,7 @@ namespace ALL_AI
 				transport_local = this->m_transport;
 			}
 
-			// 如果HTTP传输接口未设置，根据错误抛出方式处理错误
+			// If the HTTP transport interface is not set, handle the error according to the selected error mode
 			if (!transport_local)
 			{
 				if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
@@ -1416,8 +1414,8 @@ namespace ALL_AI
 				return nlohmann::json{};
 			}
 
-			// 这里的 SendRequest 是线程安全的（CurlHttpTransport 已加锁）
-			// 这里的 Parse 也是线程安全的（JsonResponceParser 已加锁）
+			// SendRequest is thread-safe here because CurlHttpTransport is already protected by a lock
+			// Parse is also thread-safe here because JsonResponceParser is already protected by a lock
 			nlohmann::json result = transport_local->SendRequest(method, request_json);
 			this->m_parser.Parse(result);
 			return this->m_parser.GetData();
@@ -1426,10 +1424,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SendRequest_POST
-		 Description: 发送POST请求
+		 Description: Send a POST request
 		 Parameters:
-			 - const nlohmann::json request_json: 一个nlohmann::json对象，表示请求的JSON数据
-		 Return: 返回一个nlohmann::json对象，表示服务器的回复内容。如果请求发送失败或服务器回复无效，返回一个空的nlohmann::json对象
+			 - const nlohmann::json request_json: A nlohmann::json object representing the request payload
+		 Return: Returns a nlohmann::json object representing the server response. If the request fails or the response is invalid, an empty nlohmann::json object is returned
 		 ============================================================================
 		*/
 		nlohmann::json SendRequest_POST(const nlohmann::json request_json)
@@ -1440,10 +1438,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SendRequest_GET
-		 Description: 发送GET请求
+		 Description: Send a GET request
 		 Parameters:
-			 - const nlohmann::json request_json: 一个nlohmann::json对象，表示请求的JSON数据
-		 Return: 返回一个nlohmann::json对象，表示服务器的回复内容。如果请求发送失败或服务器回复无效，返回一个空的nlohmann::json对象
+			 - const nlohmann::json request_json: A nlohmann::json object representing the request payload
+		 Return: Returns a nlohmann::json object representing the server response. If the request fails or the response is invalid, an empty nlohmann::json object is returned
 		 ============================================================================
 		*/
 		nlohmann::json SendRequest_GET(const nlohmann::json request_json)
@@ -1454,10 +1452,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SendRequestFromBuilder_Get
-		 Description: 发送GET请求
+		 Description: Send a GET request
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个nlohmann::json对象，表示服务器的回复内容。如果请求发送失败或服务器回复无效，返回一个空的nlohmann::json对象
+			 - None: No parameters
+		 Return: Returns a nlohmann::json object representing the server response. If the request fails or the response is invalid, an empty nlohmann::json object is returned
 		 ============================================================================
 		*/
 		nlohmann::json SendRequestFromBuilder_Get()
@@ -1469,41 +1467,41 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SendRequestFromBuilder_Post
-		 Description: 发送Post请求 - 使用构建器
+		 Description: Send a POST request using the builder
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个nlohmann::json对象，表示服务器的回复内容。如果请求发送失败或服务器回复无效，返回一个空的nlohmann::json对象
+			 - None: No parameters
+		 Return: Returns a nlohmann::json object representing the server response. If the request fails or the response is invalid, an empty nlohmann::json object is returned
 		 ============================================================================
 		*/
 		nlohmann::json SendRequestFromBuilder_Post()
 		{
-			// GetBuilder() 内部已加锁，返回副本
+			// GetBuilder() already locks internally and returns a copy
 			return SendRequest(HttpMethod::POST, this->m_builder.GetBuilder());
 		}
 
 		/*
 		 ============================================================================
 		 Function: GetBuilder
-		 Description: 获取构建器
+		 Description: Get the builder
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个构建器引用
+			 - None: No parameters
+		 Return: Returns a reference to the builder
 		 ============================================================================
 		*/
 		JsonOperator::JsonRequestBuilder& GetBuilder()
 		{
-			// 不需要加锁，因为m_builder是成员变量，地址不变
-			// 且JsonRequestBuilder的方法是线程安全的
+			// No lock is required because m_builder is a member variable whose address does not change
+			// and the methods of JsonRequestBuilder are thread-safe
 			return this->m_builder;
 		}
 
 		/*
 		 ============================================================================
 		 Function: GetBuilderData
-		 Description: 获取构建器Json数据
+		 Description: Get the builder JSON data
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个构建器中的json数据
+			 - None: No parameters
+		 Return: Returns the JSON data currently stored in the builder
 		 ============================================================================
 		*/
 		nlohmann::json GetBuilderData()
@@ -1514,10 +1512,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: GetParser
-		 Description: 获取一个解析器
+		 Description: Get a parser
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个解析器的引用
+			 - None: No parameters
+		 Return: Returns a reference to the parser
 		 ============================================================================
 		*/
 		JsonOperator::JsonResponceParser& GetParser()
@@ -1528,11 +1526,10 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: GetTools
-		 Description: 获取工具类
+		 Description: Get the utility helper object
 		 Parameters:
-			 - 无参数: 无释义
-		 Return: 返回一个工具类的引用，工具类中包含了一些常用的JSON操作工具，
-					例如ChatTool等，可以帮助用户更方便地构建请求和解析响应
+			 - None: No parameters
+		 Return: Returns a reference to the utility object, which contains commonly used JSON helper functions and can help users build requests and parse responses more conveniently
 		 ============================================================================
 		*/
 		JsonOperatorTools& GetTools()
@@ -1545,19 +1542,19 @@ namespace ALL_AI
 		std::string m_url;	// API - URL
 		std::string m_api_key;	// API - Key
 
-		ALL_AI_ErrorThrow m_error_throw = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;		// 错误抛出方式
+		ALL_AI_ErrorThrow m_error_throw = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;		// Error handling mode
 
-		std::shared_ptr<IHttpTransport> m_transport;	// HTTP传输接口
-		std::function<void(const std::string_view& message)> m_callback_function = nullptr;		// 错误回调函数
+		std::shared_ptr<IHttpTransport> m_transport;	// HTTP transport interface
+		std::function<void(const std::string_view& message)> m_callback_function = nullptr;		// Error callback function
 
-		std::mutex m_mutex_config;		// 配置互斥锁（保护 URL, Key, Transport）
-		std::mutex m_mutex_ai_init;		// AI初始化互斥锁
+		std::mutex m_mutex_config;		// Configuration mutex (protects URL, Key, and Transport)
+		std::mutex m_mutex_ai_init;		// AI initialization mutex
 
 		JsonOperator::JsonRequestBuilder m_builder;
 		JsonOperator::JsonResponceParser m_parser;
 		JsonOperatorTools m_tools;
 
-		bool m_initialized = false;	// AI是否已初始化
+		bool m_initialized = false;	// Whether AI has been initialized
 	};
 
 }
