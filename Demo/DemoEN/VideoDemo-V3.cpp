@@ -19,6 +19,7 @@ int main()
 		return 1;
 	}
 
+	// build request
 	ai.GetBuilder().SetValue("veo3.1-fast", "model");
 	ai.GetBuilder().SetValue("Helicopter takes off.", "prompt");
 	std::cout << "Builder Json: " << std::endl << ai.GetBuilderData().dump(2) << std::endl;
@@ -35,7 +36,7 @@ int main()
 		std::cout << "AI reinitialization failed." << std::endl;
 		return 1;
 	}
-	// 查询获取结果
+	// Query and obtain results
 	for (int i = 0; i < 400; ++i)
 	{
 		nlohmann::json _out = ai.SendRequestFromBuilder_Get();

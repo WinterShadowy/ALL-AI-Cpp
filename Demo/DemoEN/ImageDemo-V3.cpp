@@ -1,7 +1,4 @@
 #include "ALL-AI-V3.hpp"
-#include <iostream>
-
-using namespace std;
 
 std::string url = "YOUR_URL";
 std::string api_key = "YOUR_API_KEY";
@@ -21,13 +18,16 @@ int main()
 		std::cout << "AI initialization failed." << std::endl;
 		return 1;
 	}
-	ai.GetBuilder().SetValue("gpt-3.5-turbo", "model");
-	ai.GetBuilder().SetValue(false, "stream");
-	ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_SYSTEM, "You are helpful assistant.");
-	ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_USER, "Introduce Github to me");
-	ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
-	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
 
-	std::cout << "conetent: " << ai.GetParser().GetValue<std::string>("choices", 0, "message", "content");
+	// build request
+	ai.GetBuilder().SetValue("gpt-4o-image", "model");
+	ai.GetBuilder().SetValue(false, "stream");
+	ai.GetBuilder().SetValue(0.9, "temperature");
+	ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_USER, "a cute dog.");
+	ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
+
+	// print
+	std::cout << "Builder Json: " << std::endl << ai.GetBuilderData().dump(2) << std::endl;
+	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
 	return 0;
 }

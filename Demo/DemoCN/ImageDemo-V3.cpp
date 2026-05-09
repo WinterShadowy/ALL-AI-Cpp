@@ -19,11 +19,14 @@ int main()
 		return 1;
 	}
 
+	// 构建请求参数
 	ai.GetBuilder().SetValue("gpt-4o-image", "model");
 	ai.GetBuilder().SetValue(false, "stream");
 	ai.GetBuilder().SetValue(0.9, "temperature");
 	ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_USER, "a cute dog.");
 	ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
+
+	// 输出结果
 	std::cout << "Builder Json: " << std::endl << ai.GetBuilderData().dump(2) << std::endl;
 	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
 	return 0;
