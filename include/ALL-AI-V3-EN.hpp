@@ -24,8 +24,8 @@
 *   Feedback / updates / contact email: about@wang-sz.cn
 *
 *   If this library helps you, please consider giving it a star. Your support is my greatest motivation!
-*   
-*   ！！！Translation from OpenAI (GPT-4o-mini)！！！
+*
+*   ！！！Translation from OpenAI (GPT-4o-mini | Kimi-k2.5)！！！
 */
 
 
@@ -41,6 +41,8 @@
 #include <regex>
 #include <initializer_list>
 #include <atomic>
+#include <type_traits>
+#include <variant>
 
 #include <curl/curl.h>
 #include <functional>
@@ -128,15 +130,15 @@ namespace ALL_AI
 
 	// Classes and functions related to JSON operations
 	namespace JsonOperator {
-		// JSON request builder
-		class JsonRequestBuilder : public IRequestBuilderStrategy {
 
+		// JSON Request Builder
+		class JsonRequestBuilder : public IRequestBuilderStrategy {
 		public:
 
 			/*
 			 ============================================================================
 			 Function: GetBuilder
-			 Description: Retrieve the JSON builder
+			 Description: Returns the JSON builder object
 			 Parameters:
 				 - None: No parameters
 			 Return: Returns the JSON object
@@ -151,7 +153,7 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: ClearBuilder
-			 Description: Clear the JSON builder
+			 Description: Clears the JSON object
 			 Parameters:
 				 - None: No parameters
 			 Return: No return value
@@ -166,7 +168,7 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: GetEmptyBuilder
-			 Description: Get an empty JSON object
+			 Description: Returns an empty JSON object
 			 Parameters:
 				 - None: No parameters
 			 Return: Returns an empty JSON object
@@ -177,16 +179,67 @@ namespace ALL_AI
 				return nlohmann::json{};
 			}
 
-			// Set the value of a specific JSON field
+			// Sets a value at a specific JSON field path
 			template <typename _T_Value, typename... Args>
-			bool SetValue(_T_Value, Args... _keys);
+			bool SetValue(_T_Value _value, Args... _keys);
+
+			// Appends to an array (creates array if path doesn't exist, fails if exists but is not an array)
+			template <typename _T_Value, typename... Args>
+			bool AppendToArray(_T_Value _value, Args... _keys);
+
+			// Inserts or replaces a value at a specific array index
+			template <typename _T_Value, typename... Args>
+			bool SetArrayValue(_T_Value _value, size_t index, Args... _keys);
+
+			// Gets array length (returns 0 if path doesn't exist, -1 if not an array)
+			template <typename... Args>
+			int GetArrayLength(Args... _keys);
+
+			// Creates an empty array
+			template <typename... Args>
+			bool CreateArray(Args... _keys);
+
+			// Creates an empty object
+			template <typename... Args>
+			bool CreateObject(Args... _keys);
 
 		private:
-			// Base case of the recursive JSON field setter
+
+			// Path element type: can be a string key or an array index
+			using PathKey = std::variant<std::string, size_t, int>;
+
+			// Terminates recursion
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path);
+
+			// String key
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const std::string& _key);
+
+			// Array index
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const char* _key);
+
+			// Array index（size_t 或 int）
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, size_t _index);
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& path, int index);
+
+			// Variadic parameter expansion
+			template <typename T, typename... Rest>
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest);
+
+			// Converts variadic parameters to a path array
+			template <typename... Args>
+			std::vector<PathKey> BuildPath(Args&&... args);
+
+			// Navigates to or creates a node by path (auto-creates intermediate objects/arrays)
+			nlohmann::json* NavigateOrCreate(nlohmann::json& root, const std::vector<PathKey>& path, bool createMissing = true);
+
+			// Navigates to a node by path (read-only, no creation)
+			nlohmann::json* Navigate(nlohmann::json& root, const std::vector<PathKey>& path);
+
+			// Sets a JSON field value: recursion termination layer
 			template <typename T>
 			bool _setValue(nlohmann::json& _json, T&& val, const std::string& key);
 
-			// Recursive intermediate case for setting a JSON field
+			// Sets a JSON field value: recursion intermediate layer
 			template <typename T, typename... Args>
 			bool _setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest);
 
@@ -199,11 +252,11 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: SetValue
-		 Description: Set the value of a specific JSON field - interface
+		 Description: Sets a value at a specific JSON field path - Interface
 		 Parameters:
-			 - _T_Value: The value to be assigned
-			 - Args...: Variable arguments that must be strings and are used as keys in the JSON path
-		 Return: Returns true on success; otherwise returns false
+			 - _T_Value: The value to be set
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
@@ -211,23 +264,474 @@ namespace ALL_AI
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			static_assert((std::is_convertible_v<Args, std::string> && ...),
-				"All keys must be convertible to string");
-			return _setValue(this->m_request_json, _value, _keys...);
+			// Uses new NavigateOrCreate to replace original recursive _setValue
+			std::vector<PathKey> path = BuildPath(_keys...);
+			if (path.empty())
+			{
+				return false;
+			}
+
+			PathKey lastKey = path.back();
+			std::vector<PathKey> parentPath(path.begin(), path.end() - 1);
+
+			nlohmann::json* parent = NavigateOrCreate(m_request_json, parentPath, true);
+			if (parent == nullptr)
+			{
+				return false;
+			}
+
+			// Sets value, std::holds_alternative checks variable type, returns false if not string or size_t
+			// true - string, key
+			// false - size_t, index
+			if (std::holds_alternative<std::string>(lastKey))
+			{
+				(*parent)[std::get<std::string>(lastKey)] = _value;
+			}
+			else
+			{
+				size_t index = std::get<size_t>(lastKey);
+				if (!parent->is_array() && !parent->is_null())
+				{
+					return false;
+				}
+				if (parent->is_null())
+				{
+					*parent = nlohmann::json::array();
+				}
+				while (parent->size() <= index)
+				{
+					parent->push_back(nullptr);
+				}
+				(*parent)[index] = _value;
+			}
+			return true;
 		}
 
 		/*
 		 ============================================================================
-		 Function: _setValue(
-		 Description: Implementation of setting a specific JSON field
+		 Function: AppendToArray
+		 Description: Appends an element to the end of a JSON array
 		 Parameters:
-			 - nlohmann::json: A JSON object
-			 - T&&: A value used as the JSON field value
-			 - const std::string&: A string used as the JSON key
-		 Return: Returns true on success; otherwise returns false
+			 - _T_Value: The value to be set
+			 - _Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
 		 ============================================================================
 		*/
+		template<typename _T_Value, typename ...Args>
+		inline bool JsonRequestBuilder::AppendToArray(_T_Value _value, Args ..._keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			if (node == nullptr)
+			{
+				return false;
+			}
+			if (!node->is_array() && !node->is_null())
+			{
+				return false;
+			}
+
+			if (node->is_null())
+			{
+				*node = nlohmann::json::array();
+			}
+			node->push_back(_value);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: SetArrayValue
+		 Description: Sets a value at a specific JSON array index
+		 Parameters:
+			 - _T_Value: The value to be set
+			 - size_t: The index
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
+		 ============================================================================
+		*/
+		template <typename _T_Value, typename... Args>
+		bool JsonRequestBuilder::SetArrayValue(_T_Value _value, size_t index, Args... _keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			if (node == nullptr)
+			{
+				return false;
+			}
+			if (!node->is_array() && !node->is_null())
+			{
+				return false;
+			}
+
+			if (node->is_null())
+			{
+				*node = nlohmann::json::array();
+			}
+
+			// Ensures index is valid
+			if (index > node->size())
+			{
+				// Expands array
+				while (node->size() < index)
+				{
+					node->push_back(nullptr);
+				}
+			}
+			if (index == node->size())
+			{
+				node->push_back(_value);
+			}
+			else
+			{
+				(*node)[index] = _value;
+			}
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayLength
+		 Description: Gets the length of a JSON array
+		 Parameters:
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Array length. Returns length if parameters are valid, -1 otherwise, 0 if node doesn't exist
+		 ============================================================================
+		*/
+		template <typename... Args>
+		int JsonRequestBuilder::GetArrayLength(Args... _keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			// 如果节点不存在，返回0
+			if (node == nullptr)
+			{
+				return 0;
+			}
+
+			// 如果不是数组，返回-1
+			if (!node->is_array())
+			{
+				return -1;
+			}
+
+			return static_cast<int>(node->size());
+		}
+
+		/*
+		 ============================================================================
+		 Function: CreateArray
+		 Description: Creates a JSON array
+		 Parameters:
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
+		 ============================================================================
+		*/
+		template <typename... Args>
+		bool JsonRequestBuilder::CreateArray(Args... _keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			// Node doesn't exist
+			if (node == nullptr)
+			{
+				return false;
+			}
+			*node = nlohmann::json::array();
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: CreateObject
+		 Description: Creates a JSON object
+		 Parameters:
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
+		 ============================================================================
+		*/
+		template <typename... Args>
+		bool JsonRequestBuilder::CreateObject(Args... _keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			// Node doesn't exist
+			if (node == nullptr)
+			{
+				return false;
+			}
+
+			*node = nlohmann::json::object();
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPathImpl
+		 Description: Builds path - Recursion termination
+		 Parameters:
+			 - std::vector<JsonRequestBuilder::PathKey>& path: The path
+		 Return: None
+		 ============================================================================
+		*/
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path)
+		{
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPathImpl
+		 Description: Path building implementation
+		 Parameters:
+			 - std::vector<JsonRequestBuilder::PathKey>&: The path
+			 - const std::string: The key
+		 Return: None
+		 ============================================================================
+		*/
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const std::string& _key)
+		{
+			_path.emplace_back(_key);
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPathImpl
+		 Description: Path building implementation
+		 Parameters:
+			 - std::vector<JsonRequestBuilder::PathKey>&: The path
+			 - const char*: The key
+		 Return: None
+		 ============================================================================
+		*/
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const char* _key)
+		{
+			_path.emplace_back(std::string(_key));
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPathImpl
+		 Description: Path building implementation
+		 Parameters:
+			 - std::vector<JsonRequestBuilder::PathKey>&: The path
+			 - size_t: The index
+		 Return: None
+		 ============================================================================
+		*/
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, size_t _index)
+		{
+			_path.emplace_back(_index);
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPathImpl
+		 Description: Path building implementation
+		 Parameters:
+			 - std::vector<JsonRequestBuilder::PathKey>&: The path
+			 - int: The index
+		 Return: None
+		 ============================================================================
+		*/
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, int _index)
+		{
+			if (_index < 0)
+			{
+				throw std::invalid_argument("Array index cannot be negative");
+			}
+			_path.emplace_back(static_cast<size_t>(_index));
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPathImpl
+		 Description: Path building implementation
+		 Parameters:
+			 - std::vector<JsonRequestBuilder::PathKey>&: The path
+			 - T&&: Parameter - First parameter
+			 - Rest&&...: Parameters - Remaining parameters
+		 Return: None
+		 ============================================================================
+		*/
+		template <typename T, typename... Rest>
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest)
+		{
+			BuildPathImpl(_path, std::forward<T>(_first));
+			BuildPathImpl(_path, std::forward<Rest>(rest)...);
+		}
+
+		/*
+		 ============================================================================
+		 Function: BuildPath
+		 Description: Builds the path
+		 Parameters:
+			 - Args&&... args: Parameters
+		 Return: Returns the path
+		 ============================================================================
+		*/
+		template <typename... Args>
+		std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... args)
+		{
+			std::vector<PathKey> path;
+			BuildPathImpl(path, std::forward<Args>(args)...);
+			return path;
+		}
+
+		/*
+		 ============================================================================
+		 Function: NavigateOrCreate
+		 Description: Navigates to a JSON node and creates it if missing
+		 Parameters:
+			 - nlohmann::json& root: Root node
+			 - const std::vector<PathKey>& path: The path
+			 - bool: Whether to create if path doesn't exist. true - create, false - do not create
+		 Return: nlohmann::json*, returns nullptr if path doesn't exist, otherwise returns node pointer
+		 ============================================================================
+		*/
+		nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& root, const std::vector<PathKey>& path, bool createMissing)
+		{
+			nlohmann::json* current = &root;
+
+			for (const PathKey& key : path)
+			{
+				std::visit([&](auto&& k) {
+					using T = std::decay_t<decltype(k)>;
+
+					if constexpr (std::is_same_v<T, std::string>)
+					{
+						// Object key access
+						if (!current->contains(k))
+						{
+							if (!createMissing)
+							{
+								current = nullptr;
+								return;
+							}
+							(*current)[k] = nlohmann::json::object();
+						}
+						current = &(*current)[k];
+					}
+					else if constexpr (std::is_same_v<T, size_t>)
+					{
+						// Array index访问
+						if (!current->is_array())
+						{
+							if (!createMissing || !current->is_null())
+							{
+								// If not null and not array, and creation not allowed, fail
+								if (!current->is_null())
+								{
+									current = nullptr;
+									return;
+								}
+							}
+							// Converts null to array
+							*current = nlohmann::json::array();
+						}
+
+						// Ensures array is long enough
+						if (k >= current->size())
+						{
+							if (!createMissing)
+							{
+								current = nullptr;
+								return;
+							}
+							// Expands array, filling gaps with null
+							while (current->size() <= k)
+							{
+								current->push_back(nullptr);
+							}
+						}
+						current = &(*current)[k];
+					}
+					}, key);
+
+				if (current == nullptr)
+				{
+					return nullptr;
+				}
+			}
+
+			return current;
+		}
+
+		/*
+		 ============================================================================
+		 Function: Navigate
+		 Description: Navigates to a JSON node
+		 Parameters:
+			 - nlohmann::json& root: Root node
+			 - const std::vector<PathKey>& path: The path
+		 Return: nlohmann::json*, returns nullptr if path doesn't exist, otherwise returns node pointer
+		 ============================================================================
+		*/
+		nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& root, const std::vector<PathKey>& path)
+		{
+			nlohmann::json* current = &root;
+
+			for (const auto& key : path)
+			{
+				// Accesses current node
+				std::visit([&](auto&& k) {
+					using T = std::decay_t<decltype(k)>;
+
+					if constexpr (std::is_same_v<T, std::string>)
+					{
+						if (!current->contains(k) || !current->is_object())
+						{
+							current = nullptr;
+							return;
+						}
+						current = &(*current)[k];
+					}
+					else if constexpr (std::is_same_v<T, size_t>)
+					{
+						if (!current->is_array() || k >= current->size())
+						{
+							current = nullptr;
+							return;
+						}
+						current = &(*current)[k];
+					}
+					}, key);
+
+				// If current node is nullptr, returns nullptr
+				if (current == nullptr)
+				{
+					return nullptr;
+				}
+			}
+
+			return current;
+		}
+
+		/*
+		 ============================================================================
+		 Function: _setValue
+		 Description: Sets a value at a specific JSON field path - Interface Implementation
+		 Parameters:
+			 - nlohmann::json: A JSON object
+			 - T&&: A value to be used as the JSON field value
+			 - const std::string&: A string used as the JSON field index
+		 Return: Returns true on success, false otherwise
+		 ============================================================================
+		*/
 		template <typename T>
 		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& key)
 		{
@@ -238,23 +742,25 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _setValue
-		 Description: Recursive intermediate layer for setting a specific JSON field
-		   Supports writing to a deep path recursively, for example:
+		 Description: Sets a value at a specific JSON field path - intermediate interface layer
+		   Uses recursion to support writing to deep paths.
+		   For example:
 		   _setValue(j, 42, "a", "b", "c") is equivalent to j["a"]["b"]["c"] = 42
+		   Only writes when all intermediate objects on the entire path exist, otherwise aborts and returns false.
 		 Parameters:
-		   - nlohmann::json: The JSON object to modify
-		   - T&&: The final value to write
-		   - const std::string&: The first key in the path
-		   - Args&&...: Remaining keys (variadic arguments), which may be empty
+		   - nlohmann::json: JSON object to be modified (passed by value, internal copy)
+		   - T&&: The final value to be written
+		   - const std::string&: The first key on the path
+		   - Args&&...: Remaining keys (variadic parameter pack), length can be 0
 		 Return:
-		   - true  - The assignment succeeds
-		   - false - The write fails
+		   - true  - Successfully found leaf node and completed assignment
+		   - false - Any intermediate node in the path doesn't exist, or a non-object type is encountered, write failed
 		 ============================================================================
 		*/
 		template <typename T, typename... Args>
 		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest)
 		{
-			// Continue recursion directly to avoid copying
+			// Continues recursion directly to avoid copying
 			return _setValue(_json[first], std::forward<T>(val), std::forward<Args>(rest)...);
 		}
 
@@ -457,7 +963,7 @@ namespace ALL_AI
 
 						this->m_callback_function("Array index out of bounds: " + std::to_string(first));
 					}
-					else if(this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
 					{
 						std::cerr << "Array index out of bounds: " << first << std::endl;
 					}
@@ -483,7 +989,7 @@ namespace ALL_AI
 					}
 					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
 					{
-						std::cerr << "Key not found: " << first << std::endl;	
+						std::cerr << "Key not found: " << first << std::endl;
 					}
 					return _T_Type{};
 				}
