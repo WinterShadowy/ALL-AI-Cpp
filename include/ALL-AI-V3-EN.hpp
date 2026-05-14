@@ -1747,6 +1747,21 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
+		 Function: SetErrorThrow
+   		 Description: Set the error throwing method
+   		 Parameters:
+    		 - ALL_AI_ErrorThrow: An enumeration value indicating the way of error throwing
+   		 Return: No return value
+		 ============================================================================
+		*/
+		void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
+		{
+			this->m_error_throw = error_throw;
+			return;
+		}
+
+		/*
+		 ============================================================================
 		 Function: SetURL
 		 Description: Set the API endpoint URL
 		 Parameters:

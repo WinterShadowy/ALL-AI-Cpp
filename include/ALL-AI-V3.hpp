@@ -133,7 +133,6 @@ namespace ALL_AI
 
 		// JSON请求构建器
 		class JsonRequestBuilder : public IRequestBuilderStrategy {
-
 		public:
 
 			/*
@@ -182,27 +181,27 @@ namespace ALL_AI
 
 			// 设置json某个字段值
 			template <typename _T_Value, typename... Args>
-			bool SetValue(_T_Value _value, Args... _keys);
+			bool SetValue(_T_Value value, Args... keys);
 
 			// 追加到数组（如果路径不存在则创建数组，如果存在但不是数组则失败）
 			template <typename _T_Value, typename... Args>
-			bool AppendToArray(_T_Value _value, Args... _keys);
+			bool AppendToArray(_T_Value value, Args... keys);
 
 			// 在数组指定索引处插入/替换
 			template <typename _T_Value, typename... Args>
-			bool SetArrayValue(_T_Value _value, size_t index, Args... _keys);
+			bool SetArrayValue(_T_Value value, size_t index, Args... keys);
 
 			// 获取数组长度（路径不存在返回0，不是数组返回-1）
 			template <typename... Args>
-			int GetArrayLength(Args... _keys);
+			int GetArrayLength(Args... keys);
 
 			// 创建空数组
 			template <typename... Args>
-			bool CreateArray(Args... _keys);
+			bool CreateArray(Args... keys);
 
 			// 创建空对象
 			template <typename... Args>
-			bool CreateObject(Args... _keys);
+			bool CreateObject(Args... keys);
 
 		private:
 
@@ -220,29 +219,21 @@ namespace ALL_AI
 
 			// 数组索引（size_t 或 int）
 			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, size_t _index);
-			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& path, int index);
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, int _index);
 
 			// 可变参数展开
 			template <typename T, typename... Rest>
-			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest);
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... _rest);
 
 			// 将可变参数转换为路径数组
 			template <typename... Args>
-			std::vector<PathKey> BuildPath(Args&&... args);
+			std::vector<PathKey> BuildPath(Args&&... _args);
 
 			// 根据路径获取或创建节点（自动创建中间对象/数组）
-			nlohmann::json* NavigateOrCreate(nlohmann::json& root, const std::vector<PathKey>& path, bool createMissing = true);
+			nlohmann::json* NavigateOrCreate(nlohmann::json& _root, const std::vector<PathKey>& _path, bool _createMissing = true);
 
 			// 根据路径获取节点（只读，不创建）
-			nlohmann::json* Navigate(nlohmann::json& root, const std::vector<PathKey>& path);
-
-			// 设置json某个字段的值：递归的结束层
-			template <typename T>
-			bool _setValue(nlohmann::json& _json, T&& val, const std::string& key);
-
-			//设置json某个字段的值：递归中间层
-			template <typename T, typename... Args>
-			bool _setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest);
+			nlohmann::json* Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path);
 
 		private:
 			nlohmann::json m_request_json;
@@ -261,12 +252,12 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
-		bool JsonRequestBuilder::SetValue(_T_Value _value, Args... _keys)
+		bool JsonRequestBuilder::SetValue(_T_Value value, Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
 			// 使用新的 NavigateOrCreate 替代原来的递归 _setValue
-			std::vector<PathKey> path = BuildPath(_keys...);
+			std::vector<PathKey> path = BuildPath(keys...);
 			if (path.empty()) 
 			{
 				return false;
@@ -286,7 +277,7 @@ namespace ALL_AI
 			// false - size_t，索引
 			if (std::holds_alternative<std::string>(lastKey))
 			{
-				(*parent)[std::get<std::string>(lastKey)] = _value;
+				(*parent)[std::get<std::string>(lastKey)] = value;
 			}
 			else 
 			{
@@ -303,7 +294,7 @@ namespace ALL_AI
 				{
 					parent->push_back(nullptr);
 				}
-				(*parent)[index] = _value;
+				(*parent)[index] = value;
 			}
 			return true;
 		}
@@ -319,11 +310,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
-		inline bool JsonRequestBuilder::AppendToArray(_T_Value _value, Args ..._keys)
+		inline bool JsonRequestBuilder::AppendToArray(_T_Value value, Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			if (node == nullptr) 
@@ -339,7 +330,7 @@ namespace ALL_AI
 			{
 				*node = nlohmann::json::array();
 			}
-			node->push_back(_value);
+			node->push_back(value);
 			return true;
 		}
 
@@ -355,11 +346,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
-		bool JsonRequestBuilder::SetArrayValue(_T_Value _value, size_t index, Args... _keys) 
+		bool JsonRequestBuilder::SetArrayValue(_T_Value value, size_t index, Args... keys) 
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			if (node == nullptr) 
@@ -387,11 +378,11 @@ namespace ALL_AI
 			}
 			if (index == node->size()) 
 			{
-				node->push_back(_value);
+				node->push_back(value);
 			}
 			else 
 			{
-				(*node)[index] = _value;
+				(*node)[index] = value;
 			}
 			return true;
 		}
@@ -406,11 +397,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		int JsonRequestBuilder::GetArrayLength(Args... _keys) 
+		int JsonRequestBuilder::GetArrayLength(Args... keys) 
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = Navigate(m_request_json, path);
 
 			// 如果节点不存在，返回0
@@ -438,11 +429,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::CreateArray(Args... _keys) 
+		bool JsonRequestBuilder::CreateArray(Args... keys) 
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			// 节点不存在
@@ -464,11 +455,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::CreateObject(Args... _keys) 
+		bool JsonRequestBuilder::CreateObject(Args... keys) 
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			// 节点不存在
@@ -570,10 +561,10 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename T, typename... Rest>
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest)
+		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... _rest)
 		{
 			BuildPathImpl(_path, std::forward<T>(_first));
-			BuildPathImpl(_path, std::forward<Rest>(rest)...);
+			BuildPathImpl(_path, std::forward<Rest>(_rest)...);
 		}
 
 		/*
@@ -586,10 +577,10 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... args)
+		std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... _args)
 		{
 			std::vector<PathKey> path;
-			BuildPathImpl(path, std::forward<Args>(args)...);
+			BuildPathImpl(path, std::forward<Args>(_args)...);
 			return path;
 		}
 
@@ -604,11 +595,11 @@ namespace ALL_AI
 		 Return: nlohmann::json*，如果路径不存在，返回nullptr，否则返回节点指针
 		 ============================================================================
 		*/
-		nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& root, const std::vector<PathKey>& path, bool createMissing) 
+		nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& _root, const std::vector<PathKey>& _path, bool _createMissing) 
 		{
-			nlohmann::json* current = &root;
+			nlohmann::json* current = &_root;
 
-			for (const PathKey& key : path) 
+			for (const PathKey& key : _path) 
 			{
 				std::visit([&](auto&& k) {
 					using T = std::decay_t<decltype(k)>;
@@ -618,7 +609,7 @@ namespace ALL_AI
 						// 对象键访问
 						if (!current->contains(k)) 
 						{
-							if (!createMissing) 
+							if (!_createMissing) 
 							{
 								current = nullptr;
 								return;
@@ -632,7 +623,7 @@ namespace ALL_AI
 						// 数组索引访问
 						if (!current->is_array()) 
 						{
-							if (!createMissing || !current->is_null()) 
+							if (!_createMissing || !current->is_null()) 
 							{
 								// 如果不是null且不是数组，且不允许创建，失败
 								if (!current->is_null()) 
@@ -648,7 +639,7 @@ namespace ALL_AI
 						// 确保数组足够长
 						if (k >= current->size()) 
 						{
-							if (!createMissing) 
+							if (!_createMissing) 
 							{
 								current = nullptr;
 								return;
@@ -682,11 +673,11 @@ namespace ALL_AI
 		 Return: nlohmann::json*，如果路径不存在，返回nullptr，否则返回节点指针
 		 ============================================================================
 		*/
-		nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& root, const std::vector<PathKey>& path) 
+		nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path) 
 		{
-			nlohmann::json* current = &root;
+			nlohmann::json* current = &_root;
 
-			for (const auto& key : path) 
+			for (const auto& key : _path) 
 			{
 				// 访问当前节点
 				std::visit([&](auto&& k) {
@@ -720,48 +711,6 @@ namespace ALL_AI
 			}
 
 			return current;
-		}
-
-		/*
-		 ============================================================================
-		 Function: _setValue(
-		 Description: 设置json某个字段指定的值 - 接口的实现
-		 Parameters:
-			 - nlohmann::json: 一个json对象
-			 - T&&: 一个值，作为json字段的值
-			 - const std::string&: 一个字符串，作为json的字段，作为字段的索引
-		 Return: 设置成功返回true，否则返回false
-		 ============================================================================
-		*/
-		template <typename T>
-		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& key)
-		{
-			_json[key] = std::forward<T>(val);
-			return true;
-		}
-
-		/*
-		 ============================================================================
-		 Function: _setValue
-		 Description: 设置json某个字段指定的值 - 接口中间层
-		   通过递归方式，支持“深度路径”写入：例如
-		   _setValue(j, 42, "a", "b", "c") 等价于 j["a"]["b"]["c"] = 42
-		   仅当整条路径上的所有中间对象都已存在时才写入，否则放弃并返回 false。
-		 Parameters:
-		   - nlohmann::json: 待修改的 json 对象（按值传递，内部副本）
-		   - T&&: 要写入的最终值
-		   - const std::string&: 路径上的第一个键
-		   - Args&&...: 剩余键（可变参数包），长度可为 0
-		 Return:
-		   - true  – 成功找到叶子节点并完成赋值
-		   - false – 路径中任一中间节点不存在，或中途遇到非对象类型，写入失败
-		 ============================================================================
-		*/
-		template <typename T, typename... Args>
-		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest)
-		{
-			// 直接继续递归，避免拷贝
-			return _setValue(_json[first], std::forward<T>(val), std::forward<Args>(rest)...);
 		}
 
 		// json解析策略
@@ -1744,6 +1693,21 @@ namespace ALL_AI
 				return false;
 			}
 			return false;
+		}
+
+		/*
+		 ============================================================================
+		 Function: SetErrorThrow
+		 Description: 设置错误抛出方式
+		 Parameters:
+			 -  ALL_AI_ErrorThrow: 一个枚举值，表示错误抛出方式
+		 Return: 无返回值
+		 ============================================================================
+		*/
+		void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
+		{
+			this->m_error_throw = error_throw;
+			return;
 		}
 
 		/*
