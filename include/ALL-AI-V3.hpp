@@ -1171,7 +1171,7 @@ namespace ALL_AI
 				if (this->m_curl)
 				{
 					// 设置URL
-					curl_easy_setopt(this->m_curl, CURLOPT_URL, url.c_str());
+					curl_easy_setopt(this->m_curl, CURLOPT_URL, url.c_str()); 
 					curl_easy_setopt(this->m_curl, CURLOPT_FOLLOWLOCATION, 1L);
 
 					// 忽略SSL
@@ -1216,26 +1216,9 @@ namespace ALL_AI
 				struct curl_slist* headers = nullptr;
 				const bool is_stream = request_json.contains("stream") && request_json["stream"].is_boolean() && request_json["stream"].get<bool>();
 				headers = curl_slist_append(headers, is_stream ? "Accept: text/event-stream" : "Accept: application/json");
-				if (this->m_key.empty())
+				if (CheckStringEmpty(this->m_key))
 				{
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("CurlHttpTransport: api_key is empty");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("CurlHttpTransport: api_key is empty");
-						return nlohmann::json{};
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "CurlHttpTransport: api_key is empty" << std::endl;
-						return nlohmann::json{};
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW)
-					{
-						return nlohmann::json{};
-					}
+					return nlohmann::json{};
 				}
 				std::string authHeader = "Authorization: Bearer " + this->m_key;
 				headers = curl_slist_append(headers, authHeader.c_str());
@@ -1306,22 +1289,10 @@ namespace ALL_AI
 					return nlohmann::json{};
 				}
 
-				// Check if response is empty
-				if (str_Buffer.empty())
+				// 如果响应为空，根据错误抛出方式处理错误
+				if (CheckStringEmpty(str_Buffer))
 				{
 					curl_slist_free_all(headers);
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("Error: Session: Empty response from server");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("Error: Session: Empty response from server");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Error: Session: Empty response from server" << std::endl;
-					}
 					return nlohmann::json{};
 				}
 
@@ -1388,6 +1359,39 @@ namespace ALL_AI
 			virtual void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
 			{
 				this->m_error_throw = error_throw;
+			}
+
+			/*
+			 ============================================================================
+			 Function: CheckStringEmpty
+			 Description: 检查字符串是否为空
+			 Parameters:
+			   - const std::string& str: 要检查的字符串
+			 Return: 返回一个布尔值，表示字符串是否为空
+			 ============================================================================
+			*/
+			virtual bool CheckStringEmpty(const std::string& str)
+			{
+				if(str.empty())
+				{
+					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+					{
+						throw std::runtime_error("Empty string");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+					{
+						this->m_callback_function("Empty string");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+					{
+						std::cerr << "Empty string" << std::endl;
+					}
+					return true;
+				}
+				else
+				{
+					return false;
+				}
 			}
 
 			/*
@@ -1606,8 +1610,7 @@ namespace ALL_AI
 
 		private:
 
-			CURL* m_curl = nullptr;
-
+			CURL* m_curl = nullptr;		// libcurl句柄
 			std::mutex m_mutex_curl_request;
 
 			std::string m_url;	// API - URL

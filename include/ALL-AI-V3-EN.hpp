@@ -721,49 +721,6 @@ namespace ALL_AI
 			return current;
 		}
 
-		/*
-		 ============================================================================
-		 Function: _setValue
-		 Description: Sets a value at a specific JSON field path - Interface Implementation
-		 Parameters:
-			 - nlohmann::json: A JSON object
-			 - T&&: A value to be used as the JSON field value
-			 - const std::string&: A string used as the JSON field index
-		 Return: Returns true on success, false otherwise
-		 ============================================================================
-		*/
-		template <typename T>
-		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& key)
-		{
-			_json[key] = std::forward<T>(val);
-			return true;
-		}
-
-		/*
-		 ============================================================================
-		 Function: _setValue
-		 Description: Sets a value at a specific JSON field path - intermediate interface layer
-		   Uses recursion to support writing to deep paths.
-		   For example:
-		   _setValue(j, 42, "a", "b", "c") is equivalent to j["a"]["b"]["c"] = 42
-		   Only writes when all intermediate objects on the entire path exist, otherwise aborts and returns false.
-		 Parameters:
-		   - nlohmann::json: JSON object to be modified (passed by value, internal copy)
-		   - T&&: The final value to be written
-		   - const std::string&: The first key on the path
-		   - Args&&...: Remaining keys (variadic parameter pack), length can be 0
-		 Return:
-		   - true  - Successfully found leaf node and completed assignment
-		   - false - Any intermediate node in the path doesn't exist, or a non-object type is encountered, write failed
-		 ============================================================================
-		*/
-		template <typename T, typename... Args>
-		bool JsonRequestBuilder::_setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest)
-		{
-			// Continues recursion directly to avoid copying
-			return _setValue(_json[first], std::forward<T>(val), std::forward<Args>(rest)...);
-		}
-
 		// JSON parsing strategy
 		class JsonResponceParser : public IResponseParserStrategy {
 		public:
@@ -1266,26 +1223,9 @@ namespace ALL_AI
 				struct curl_slist* headers = nullptr;
 				const bool is_stream = request_json.contains("stream") && request_json["stream"].is_boolean() && request_json["stream"].get<bool>();
 				headers = curl_slist_append(headers, is_stream ? "Accept: text/event-stream" : "Accept: application/json");
-				if (this->m_key.empty())
+				if (CheckStringEmpty(this->m_key))
 				{
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("CurlHttpTransport: api_key is empty");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("CurlHttpTransport: api_key is empty");
-						return nlohmann::json{};
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "CurlHttpTransport: api_key is empty" << std::endl;
-						return nlohmann::json{};
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW)
-					{
-						return nlohmann::json{};
-					}
+					return nlohmann::json{};
 				}
 				std::string authHeader = "Authorization: Bearer " + this->m_key;
 				headers = curl_slist_append(headers, authHeader.c_str());
@@ -1357,21 +1297,9 @@ namespace ALL_AI
 				}
 
 				// Check if response is empty
-				if (str_Buffer.empty())
+				if (CheckStringEmpty(str_Buffer))
 				{
 					curl_slist_free_all(headers);
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("Error: Session: Empty response from server");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("Error: Session: Empty response from server");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Error: Session: Empty response from server" << std::endl;
-					}
 					return nlohmann::json{};
 				}
 
@@ -1411,7 +1339,39 @@ namespace ALL_AI
 				curl_slist_free_all(headers);
 				return json_result;
 			}
-
+			
+			/*
+			 ============================================================================
+			 Function: CheckStringEmpty
+			 Description: Check whether the string is empty
+			 Parameters:
+			   - const std::string& str: The string to be checked
+			 Return: Returns a boolean value indicating whether the string is empty or not
+			 ============================================================================
+			*/
+			virtual bool CheckStringEmpty(const std::string& str)
+			{
+				if(str.empty())
+				{
+					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+					{
+						throw std::runtime_error("Empty string");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+					{
+						this->m_callback_function("Empty string");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+					{
+						std::cerr << "Empty string" << std::endl;
+					}
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
 			/*
 			 ============================================================================
 			 Function: SetErrorCallbackFunction
@@ -1749,7 +1709,7 @@ namespace ALL_AI
 		 ============================================================================
 		 Function: SetErrorThrow
    		 Description: Set the error throwing method
-   		 Parameters:
+   P	 Parameters:
     		 - ALL_AI_ErrorThrow: An enumeration value indicating the way of error throwing
    		 Return: No return value
 		 ============================================================================
