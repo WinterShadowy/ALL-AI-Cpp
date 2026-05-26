@@ -2,6 +2,22 @@
 
 用于记录 ALL-AI-Cpp V3 文档与代码的关键更新，便于追踪功能演进与兼容性变化。
 
+## 2026-05-26
+```txt
+Added/新增:
+无
+
+Changed/修改:
+修改了nlohmann::json SendRequest(HttpMethod method, const nlohmann::json request_json)函数中的部分逻辑
+
+Fixed/修正:
+无
+
+Deleted/删除:
+1. _setValue函数删除
+
+```
+
 ## 2026-05-09
 ```txt
 Added/新增:
