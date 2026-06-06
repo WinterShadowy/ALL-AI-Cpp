@@ -87,7 +87,8 @@ int main() {
   - [V3 API 参考](AI-Cpp/v3/api/README.md)
   
  注：本地文档使用的项目为**docsify**
-- **在线文档**：[ALL-AI-Cpp 使用手册](https://ai-cpp-docsify.cpluscottage.top/)
+- **在线文档（停更）**：[ALL-AI-Cpp 使用手册](https://ai-cpp-docsify.cpluscottage.top/)
+- **在线文档**：[ALL-AI-Cpp 使用手册/开发文档](https://doc.cpluscottage.top/web/#/642380673)
 
 ## 6. 支持与反馈
 
