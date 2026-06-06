@@ -25,7 +25,7 @@
 *
 *   If this library helps you, please consider giving it a star. Your support is my greatest motivation!
 *
-*   ！！！Translation from OpenAI (GPT-4o-mini | Kimi-k2.5)！！！
+*   ！！！Translation from OpenAI (GPT-4o-mini)！！！
 */
 
 
@@ -60,6 +60,17 @@
 #define LINUX_VER 1L
 #include <stdlib.h>
 #include <string.h>
+#endif
+
+// Cross-platform deprecation macro (placed in the common header file)
+#if defined(__cplusplus) && __cplusplus >= 201402L	// C++14 and above: use standard attribute
+#define DEPRECATED(msg) [[deprecated(msg)]]
+#elif defined(__GNUC__) || defined(__clang__)	// GCC/Clang extension
+#define DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER) // MSVC extension
+#define DEPRECATED(msg) __declspec(deprecated(msg))
+#else	// Unknown compiler, ignore
+#define DEPRECATED(msg)
 #endif
 
 namespace ALL_AI
@@ -114,7 +125,9 @@ namespace ALL_AI
 	class IRequestBuilderStrategy : public ThrowError {
 	public:
 		virtual ~IRequestBuilderStrategy() = default;
+		DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
 		virtual nlohmann::json GetBuilder() = 0;
+		virtual nlohmann::json BuilderToJson() = 0;
 		virtual void ClearBuilder() = 0;
 		virtual nlohmann::json GetEmptyBuilder() = 0;
 	};
@@ -144,7 +157,23 @@ namespace ALL_AI
 			 Return: Returns the JSON object
 			 ============================================================================
 			*/
+			DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
 			virtual nlohmann::json GetBuilder() override
+			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_request);
+				return this->m_request_json;
+			}
+
+			/*
+			 ============================================================================
+			 Function: BuilderToJson
+			 Description: Returns the JSON object
+			 Parameters:
+				 - None: No parameters
+			 Return: Returns the nlohmann::json object representing the current state of the builder
+			 ============================================================================
+			*/
+			virtual nlohmann::json BuilderToJson() override
 			{
 				std::lock_guard<std::mutex> lock(this->m_mutex_request);
 				return this->m_request_json;
@@ -181,27 +210,31 @@ namespace ALL_AI
 
 			// Sets a value at a specific JSON field path
 			template <typename _T_Value, typename... Args>
-			bool SetValue(_T_Value _value, Args... _keys);
+			bool SetValue(_T_Value value, Args... keys);
 
 			// Appends to an array (creates array if path doesn't exist, fails if exists but is not an array)
 			template <typename _T_Value, typename... Args>
-			bool AppendToArray(_T_Value _value, Args... _keys);
+			bool AppendToArray(_T_Value value, Args... keys);
 
 			// Inserts or replaces a value at a specific array index
 			template <typename _T_Value, typename... Args>
-			bool SetArrayValue(_T_Value _value, size_t index, Args... _keys);
+			bool SetArrayValue(_T_Value value, size_t index, Args... keys);
 
 			// Gets array length (returns 0 if path doesn't exist, -1 if not an array)
 			template <typename... Args>
-			int GetArrayLength(Args... _keys);
+			int GetArrayLength(Args... keys);
 
 			// Creates an empty array
 			template <typename... Args>
-			bool CreateArray(Args... _keys);
+			bool CreateArray(Args... keys);
 
 			// Creates an empty object
 			template <typename... Args>
-			bool CreateObject(Args... _keys);
+			bool CreateObject(Args... keys);
+
+			// Clear an array (returns false if path doesn't exist or is not an array)
+			template <typename... Args>
+			bool ClearArray(Args... keys);
 
 		private:
 
@@ -219,7 +252,7 @@ namespace ALL_AI
 
 			// Array index（size_t 或 int）
 			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, size_t _index);
-			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& path, int index);
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, int _index);
 
 			// Variadic parameter expansion
 			template <typename T, typename... Rest>
@@ -227,21 +260,21 @@ namespace ALL_AI
 
 			// Converts variadic parameters to a path array
 			template <typename... Args>
-			std::vector<PathKey> BuildPath(Args&&... args);
+			std::vector<PathKey> BuildPath(Args&&... _args);
 
 			// Navigates to or creates a node by path (auto-creates intermediate objects/arrays)
-			nlohmann::json* NavigateOrCreate(nlohmann::json& root, const std::vector<PathKey>& path, bool createMissing = true);
+			nlohmann::json* NavigateOrCreate(nlohmann::json& _root, const std::vector<PathKey>& _path, bool _createMissing = true);
 
 			// Navigates to a node by path (read-only, no creation)
-			nlohmann::json* Navigate(nlohmann::json& root, const std::vector<PathKey>& path);
+			nlohmann::json* Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path);
 
 			// Sets a JSON field value: recursion termination layer
 			template <typename T>
-			bool _setValue(nlohmann::json& _json, T&& val, const std::string& key);
+			bool _setValue(nlohmann::json& _json, T&& _val, const std::string& _key);
 
 			// Sets a JSON field value: recursion intermediate layer
 			template <typename T, typename... Args>
-			bool _setValue(nlohmann::json& _json, T&& val, const std::string& first, Args&&... rest);
+			bool _setValue(nlohmann::json& _json, T&& val, const std::string& _first, Args&&... _rest);
 
 		private:
 			nlohmann::json m_request_json;
@@ -260,12 +293,12 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
-		bool JsonRequestBuilder::SetValue(_T_Value _value, Args... _keys)
+		bool JsonRequestBuilder::SetValue(_T_Value value, Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
 			// Uses new NavigateOrCreate to replace original recursive _setValue
-			std::vector<PathKey> path = BuildPath(_keys...);
+			std::vector<PathKey> path = BuildPath(keys...);
 			if (path.empty())
 			{
 				return false;
@@ -285,7 +318,7 @@ namespace ALL_AI
 			// false - size_t, index
 			if (std::holds_alternative<std::string>(lastKey))
 			{
-				(*parent)[std::get<std::string>(lastKey)] = _value;
+				(*parent)[std::get<std::string>(lastKey)] = value;
 			}
 			else
 			{
@@ -302,7 +335,7 @@ namespace ALL_AI
 				{
 					parent->push_back(nullptr);
 				}
-				(*parent)[index] = _value;
+				(*parent)[index] = value;
 			}
 			return true;
 		}
@@ -318,11 +351,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
-		inline bool JsonRequestBuilder::AppendToArray(_T_Value _value, Args ..._keys)
+		inline bool JsonRequestBuilder::AppendToArray(_T_Value value, Args ... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			if (node == nullptr)
@@ -338,7 +371,7 @@ namespace ALL_AI
 			{
 				*node = nlohmann::json::array();
 			}
-			node->push_back(_value);
+			node->push_back(value);
 			return true;
 		}
 
@@ -354,11 +387,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
-		bool JsonRequestBuilder::SetArrayValue(_T_Value _value, size_t index, Args... _keys)
+		bool JsonRequestBuilder::SetArrayValue(_T_Value value, size_t index, Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			if (node == nullptr)
@@ -386,11 +419,11 @@ namespace ALL_AI
 			}
 			if (index == node->size())
 			{
-				node->push_back(_value);
+				node->push_back(value);
 			}
 			else
 			{
-				(*node)[index] = _value;
+				(*node)[index] = value;
 			}
 			return true;
 		}
@@ -405,11 +438,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		int JsonRequestBuilder::GetArrayLength(Args... _keys)
+		int JsonRequestBuilder::GetArrayLength(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = Navigate(m_request_json, path);
 
 			// 如果节点不存在，返回0
@@ -437,11 +470,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::CreateArray(Args... _keys)
+		bool JsonRequestBuilder::CreateArray(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			// Node doesn't exist
@@ -463,11 +496,11 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::CreateObject(Args... _keys)
+		bool JsonRequestBuilder::CreateObject(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
-			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(_keys...);
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
 			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
 
 			// Node doesn't exist
@@ -478,6 +511,39 @@ namespace ALL_AI
 
 			*node = nlohmann::json::object();
 			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ClearArray
+		 Description: Clears a JSON array
+		 Parameters:
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: returns false if path doesn't exist or is not an array, true on success
+		 ============================================================================
+		*/
+		template <typename... Args>
+		bool JsonRequestBuilder::ClearArray(Args... keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			// if node doesn't exist, return false
+			if (node == nullptr)
+			{
+				return false;
+			}
+
+			// if not an array, return false
+			if (node->is_array())
+			{
+				node->clear();
+				return true;
+			}
+
+			return false;
 		}
 
 		/*
@@ -585,10 +651,10 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... args)
+		std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... _args)
 		{
 			std::vector<PathKey> path;
-			BuildPathImpl(path, std::forward<Args>(args)...);
+			BuildPathImpl(path, std::forward<Args>(_args)...);
 			return path;
 		}
 
@@ -603,11 +669,11 @@ namespace ALL_AI
 		 Return: nlohmann::json*, returns nullptr if path doesn't exist, otherwise returns node pointer
 		 ============================================================================
 		*/
-		nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& root, const std::vector<PathKey>& path, bool createMissing)
+		nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& _root, const std::vector<PathKey>& _path, bool _createMissing)
 		{
-			nlohmann::json* current = &root;
+			nlohmann::json* current = &_root;
 
-			for (const PathKey& key : path)
+			for (const PathKey& key : _path)
 			{
 				std::visit([&](auto&& k) {
 					using T = std::decay_t<decltype(k)>;
@@ -617,7 +683,7 @@ namespace ALL_AI
 						// Object key access
 						if (!current->contains(k))
 						{
-							if (!createMissing)
+							if (!_createMissing)
 							{
 								current = nullptr;
 								return;
@@ -631,7 +697,7 @@ namespace ALL_AI
 						// Array index访问
 						if (!current->is_array())
 						{
-							if (!createMissing || !current->is_null())
+							if (!_createMissing || !current->is_null())
 							{
 								// If not null and not array, and creation not allowed, fail
 								if (!current->is_null())
@@ -647,7 +713,7 @@ namespace ALL_AI
 						// Ensures array is long enough
 						if (k >= current->size())
 						{
-							if (!createMissing)
+							if (!_createMissing)
 							{
 								current = nullptr;
 								return;
@@ -681,11 +747,11 @@ namespace ALL_AI
 		 Return: nlohmann::json*, returns nullptr if path doesn't exist, otherwise returns node pointer
 		 ============================================================================
 		*/
-		nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& root, const std::vector<PathKey>& path)
+		nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path)
 		{
-			nlohmann::json* current = &root;
+			nlohmann::json* current = &_root;
 
-			for (const auto& key : path)
+			for (const auto& key : _path)
 			{
 				// Accesses current node
 				std::visit([&](auto&& k) {
@@ -720,6 +786,7 @@ namespace ALL_AI
 
 			return current;
 		}
+
 
 		// JSON parsing strategy
 		class JsonResponceParser : public IResponseParserStrategy {
@@ -1223,9 +1290,26 @@ namespace ALL_AI
 				struct curl_slist* headers = nullptr;
 				const bool is_stream = request_json.contains("stream") && request_json["stream"].is_boolean() && request_json["stream"].get<bool>();
 				headers = curl_slist_append(headers, is_stream ? "Accept: text/event-stream" : "Accept: application/json");
-				if (CheckStringEmpty(this->m_key))
+				if (this->m_key.empty())
 				{
-					return nlohmann::json{};
+					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+					{
+						throw std::runtime_error("CurlHttpTransport: api_key is empty");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+					{
+						this->m_callback_function("CurlHttpTransport: api_key is empty");
+						return nlohmann::json{};
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+					{
+						std::cerr << "CurlHttpTransport: api_key is empty" << std::endl;
+						return nlohmann::json{};
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW)
+					{
+						return nlohmann::json{};
+					}
 				}
 				std::string authHeader = "Authorization: Bearer " + this->m_key;
 				headers = curl_slist_append(headers, authHeader.c_str());
@@ -1297,9 +1381,21 @@ namespace ALL_AI
 				}
 
 				// Check if response is empty
-				if (CheckStringEmpty(str_Buffer))
+				if (str_Buffer.empty())
 				{
 					curl_slist_free_all(headers);
+					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+					{
+						throw std::runtime_error("Error: Session: Empty response from server");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+					{
+						this->m_callback_function("Error: Session: Empty response from server");
+					}
+					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+					{
+						std::cerr << "Error: Session: Empty response from server" << std::endl;
+					}
 					return nlohmann::json{};
 				}
 
@@ -1339,39 +1435,7 @@ namespace ALL_AI
 				curl_slist_free_all(headers);
 				return json_result;
 			}
-			
-			/*
-			 ============================================================================
-			 Function: CheckStringEmpty
-			 Description: Check whether the string is empty
-			 Parameters:
-			   - const std::string& str: The string to be checked
-			 Return: Returns a boolean value indicating whether the string is empty or not
-			 ============================================================================
-			*/
-			virtual bool CheckStringEmpty(const std::string& str)
-			{
-				if(str.empty())
-				{
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("Empty string");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("Empty string");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Empty string" << std::endl;
-					}
-					return true;
-				}
-				else
-				{
-					return false;
-				}
-			}
+
 			/*
 			 ============================================================================
 			 Function: SetErrorCallbackFunction
@@ -1707,21 +1771,6 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: SetErrorThrow
-   		 Description: Set the error throwing method
-   P	 Parameters:
-    		 - ALL_AI_ErrorThrow: An enumeration value indicating the way of error throwing
-   		 Return: No return value
-		 ============================================================================
-		*/
-		void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
-		{
-			this->m_error_throw = error_throw;
-			return;
-		}
-
-		/*
-		 ============================================================================
 		 Function: SetURL
 		 Description: Set the API endpoint URL
 		 Parameters:
@@ -1957,7 +2006,7 @@ namespace ALL_AI
 		nlohmann::json SendRequestFromBuilder_Post()
 		{
 			// GetBuilder() already locks internally and returns a copy
-			return SendRequest(HttpMethod::POST, this->m_builder.GetBuilder());
+			return SendRequest(HttpMethod::POST, this->m_builder.BuilderToJson());
 		}
 
 		/*
@@ -1987,7 +2036,7 @@ namespace ALL_AI
 		*/
 		nlohmann::json GetBuilderData()
 		{
-			return this->m_builder.GetBuilder();
+			return this->m_builder.BuilderToJson();
 		}
 
 		/*

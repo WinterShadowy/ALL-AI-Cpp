@@ -62,6 +62,17 @@
 #include <string.h>
 #endif
 
+// 跨平台弃用宏（放在公共头文件中）
+#if defined(__cplusplus) && __cplusplus >= 201402L	// C++14 及以上：使用标准属性
+#define DEPRECATED(msg) [[deprecated(msg)]]
+#elif defined(__GNUC__) || defined(__clang__)	// GCC/Clang 扩展
+#define DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER) // MSVC 扩展
+#define DEPRECATED(msg) __declspec(deprecated(msg))
+#else	// 未知编译器，忽略
+#define DEPRECATED(msg)
+#endif
+
 namespace ALL_AI
 {
 
@@ -114,7 +125,10 @@ namespace ALL_AI
 	class IRequestBuilderStrategy : public ThrowError {
 	public:
 		virtual ~IRequestBuilderStrategy() = default;
+		DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
 		virtual nlohmann::json GetBuilder() = 0;
+
+		virtual nlohmann::json BuilderToJson() = 0;
 		virtual void ClearBuilder() = 0;
 		virtual nlohmann::json GetEmptyBuilder() = 0;
 	};
@@ -144,7 +158,23 @@ namespace ALL_AI
 			 Return: 返回json
 			 ============================================================================
 			*/
+			DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
 			virtual nlohmann::json GetBuilder() override
+			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_request);
+				return this->m_request_json;
+			}
+
+			/*
+			 ============================================================================
+			 Function: BuilderToJson
+			 Description: 将构建器内容转换为json对象
+			 Parameters:
+				 - 无参数: 无释义
+			 Return: 返回nlohmann::json
+			 ============================================================================
+			*/
+			virtual nlohmann::json BuilderToJson() override
 			{
 				std::lock_guard<std::mutex> lock(this->m_mutex_request);
 				return this->m_request_json;
@@ -202,6 +232,10 @@ namespace ALL_AI
 			// 创建空对象
 			template <typename... Args>
 			bool CreateObject(Args... keys);
+
+			// 清空数组
+			template <typename... Args>
+			bool ClearArray(Args... keys);
 
 		private:
 
@@ -470,6 +504,39 @@ namespace ALL_AI
 
 			*node = nlohmann::json::object();
 			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ClearArray
+		 Description: 清空json数组
+		 Parameters:
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 设置成功返回true，否则返回false（索引的数组不存在或不是数组）
+		 ============================================================================
+		*/
+		template <typename... Args>
+		bool JsonRequestBuilder::ClearArray(Args... keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			// 如果节点不存在，返回false
+			if (node == nullptr)
+			{
+				return false;
+			}
+
+			// 如果不是数组，返回false
+			if (node->is_array())
+			{
+				node->clear();
+				return true;
+			}
+
+			return false;
 		}
 
 		/*
@@ -1289,7 +1356,7 @@ namespace ALL_AI
 					return nlohmann::json{};
 				}
 
-				// 如果响应为空，根据错误抛出方式处理错误
+				// Check if response is empty
 				if (CheckStringEmpty(str_Buffer))
 				{
 					curl_slist_free_all(headers);
@@ -1950,7 +2017,7 @@ namespace ALL_AI
 		nlohmann::json SendRequestFromBuilder_Post()
 		{
 			// GetBuilder() 内部已加锁，返回副本
-			return SendRequest(HttpMethod::POST, this->m_builder.GetBuilder());
+			return SendRequest(HttpMethod::POST, this->m_builder.BuilderToJson());
 		}
 
 		/*
@@ -1980,7 +2047,7 @@ namespace ALL_AI
 		*/
 		nlohmann::json GetBuilderData()
 		{
-			return this->m_builder.GetBuilder();
+			return this->m_builder.BuilderToJson();
 		}
 
 		/*
