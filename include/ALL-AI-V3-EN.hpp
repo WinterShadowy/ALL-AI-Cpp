@@ -46,6 +46,7 @@
 
 #include <curl/curl.h>
 #include <functional>
+#include <optional>
 
 #include "nlohmann/json.hpp"
 
@@ -95,31 +96,59 @@ namespace ALL_AI
 		ThrowError() {};
 		~ThrowError() {};
 
-		void SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function);
+		/*
+		============================================================================
+		Function: SetThrowErrorCallbackFunction
+		Description: Set the callback function used for error reporting
+		Parameters:
+			- std::function<void(const std::string_view& message)> callback_function: A callback that receives error messages
+		Return: No return value
+		============================================================================
+		*/
+		void SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
+		{
+			if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
+				callback_function != nullptr)
+			{
+				this->m_callback_function = callback_function;
+			}
+			return;
+		}
+
+		/*
+		============================================================================
+		Function: DoErrorThrow
+		Description: Perform error throwing operation
+		Parameters:
+			- std::string_view message: error message
+		Return: No return value
+		============================================================================
+		*/
+		void DoErrorThrow(std::string_view message)
+		{
+			if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+			{
+				throw std::runtime_error(std::string(message));
+			}
+			else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+			{
+				if (this->m_callback_function != nullptr)
+				{
+					this->m_callback_function(message);
+					return;
+				}
+			}
+			else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+			{
+				std::cerr << message << std::endl;
+				return;
+			}
+		}
 
 	protected:
 		ALL_AI_ErrorThrow m_ErrorThrow = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;
 		std::function<void(const std::string_view& message)> m_callback_function;
 	};
-
-	/*
-	============================================================================
-	Function: SetThrowErrorCallbackFunction
-	Description: Set the callback function used for error reporting
-	Parameters:
-		- std::function<void(const std::string_view& message)> callback_function: A callback that receives error messages
-	Return: No return value
-	============================================================================
-	*/
-	void ThrowError::SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
-	{
-		if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-			callback_function != nullptr)
-		{
-			this->m_callback_function = callback_function;
-		}
-		return;
-	}
 
 	// Request builder strategy
 	class IRequestBuilderStrategy : public ThrowError {
@@ -212,9 +241,29 @@ namespace ALL_AI
 			template <typename _T_Value, typename... Args>
 			bool SetValue(_T_Value value, Args... keys);
 
-			// Appends to an array (creates array if path doesn't exist, fails if exists but is not an array)
+			// Appends to an array (creates array if path doesn't exist, fails if exists but is not an array), at the end of the array
 			template <typename _T_Value, typename... Args>
-			bool AppendToArray(_T_Value value, Args... keys);
+			bool ArrayPushBack(_T_Value value, Args... keys);
+
+			// Deletes the last element of an array (fails if path doesn't exist, is not an array, or array is empty)
+			template <typename... Args>
+			bool ArrayDeleteBack(Args... keys);
+
+			// Appends an element to the front of an array (creates array if path doesn't exist, fails if exists but is not an array)
+			template <typename _T_Value, typename... Args>
+			bool ArrayPushFront(_T_Value value, Args... keys);
+
+			// Deletes the first element of an array (fails if path doesn't exist, is not an array, or array is empty)
+			template <typename... Args>
+			bool ArrayDeleteFront(Args... keys);
+
+			// Append an element at the specified index in the array
+			template <typename _T_Value, typename... Args>
+			bool ArrayInsert(size_t index, _T_Value value, Args... keys);
+
+			// Delete the element at the specified index in the array (if the path does not exist, or if it is not an array, or if the array is empty, the operation will fail)
+			template <typename... Args>
+			bool ArrayDelete(size_t index, Args... keys);
 
 			// Inserts or replaces a value at a specific array index
 			template <typename _T_Value, typename... Args>
@@ -223,6 +272,18 @@ namespace ALL_AI
 			// Gets array length (returns 0 if path doesn't exist, -1 if not an array)
 			template <typename... Args>
 			int GetArrayLength(Args... keys);
+
+			// Get the last element of the array (fail if the path does not exist, or if the input is not an array, or if the array is empty)
+			template <typename _T_Value, typename... Args>
+			std::optional<_T_Value> GetArrayBack(Args... keys);
+
+			// Get the first element of the array (fail if the path does not exist, or if the input is not an array, or if the array is empty)
+			template <typename _T_Value, typename... Args>
+			std::optional<_T_Value> GetArrayFront(Args... keys);
+
+			// Retrieve the element at the specified index of the array (fail if the path does not exist, or if the input is not an array, or if the array is empty)
+			template <typename _T_Value, typename... Args>
+			std::optional<_T_Value> GetArrayValue(size_t index, Args... keys);
 
 			// Creates an empty array
 			template <typename... Args>
@@ -342,16 +403,16 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: AppendToArray
-		 Description: Appends an element to the end of a JSON array
+		 Function: ArrayPushBack
+		 Description: Append elements to the end of the JSON array
 		 Parameters:
-			 - _T_Value: The value to be set
-			 - _Args...: Variadic parameters, must be strings, used as JSON field indices
-		 Return: Returns true on success, false otherwise
+			 - _T_Value: The value that needs to be set
+			 - _Args...: The optional parameter must be a string, serving as an index pointing to the field in JSON
+		 Return: If the setting is successful, return true; otherwise, return false
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
-		inline bool JsonRequestBuilder::AppendToArray(_T_Value value, Args ... keys)
+		inline bool JsonRequestBuilder::ArrayPushBack(_T_Value value, Args ...keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -372,6 +433,149 @@ namespace ALL_AI
 				*node = nlohmann::json::array();
 			}
 			node->push_back(value);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayDeleteBack
+		 Description: Deletes the last element of a JSON array
+		 Parameters:
+			 - Args...: The optional parameter must be a string, serving as an index pointing to the field in JSON
+		 Return: If the deletion is successful, return true; otherwise, return false
+		 ============================================================================
+		*/
+		template<typename ...Args>
+		inline bool JsonRequestBuilder::ArrayDeleteBack(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return false;
+			}
+
+			node->erase(node->end() - 1);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayPushFront
+		 Description: Appends an element to the beginning of a JSON array
+		 Parameters:
+			 - _T_Value: The value to be set
+			 - Args...: The optional parameter must be a string, serving as an index pointing to the field in JSON
+		 Return: If the setting is successful, return true; otherwise, return false
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline bool JsonRequestBuilder::ArrayPushFront(_T_Value value, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			if (node == nullptr)
+			{
+				return false;
+			}
+			if (!node->is_array() && !node->is_null())
+			{
+				return false;
+			}
+
+			node->insert(node->begin(), value);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayDeleteFront
+		 Description: Deletes the first element of a JSON array
+		 Parameters:
+			 - _T_Value: The value to be set
+			 - Args...: The optional parameter must be a string, serving as an index pointing to the field in JSON
+		 Return: If the deletion is successful, return true; otherwise, return false
+		 ============================================================================
+		*/
+		template<typename ...Args>
+		inline bool JsonRequestBuilder::ArrayDeleteFront(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return false;
+			}
+
+			node->erase(node->begin());
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayInsert
+		 Description: Inserts an element at the specified index in a JSON array
+		 Parameters:
+			 - _T_Value: The value to be set
+			 - size_t: The index
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline bool JsonRequestBuilder::ArrayInsert(size_t index, _T_Value value, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			if (node == nullptr)
+			{
+				return false;
+			}
+			if (!node->is_array() && !node->is_null())
+			{
+				return false;
+			}
+
+			node->insert(node->begin() + index, value);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayDelete
+		 Description: Delete the element at the specified index in the JSON array
+		 Parameters:
+			 - size_t: The index
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns true on success, false otherwise
+		 ============================================================================
+		*/
+		template<typename ...Args>
+		inline bool JsonRequestBuilder::ArrayDelete(size_t index, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->size() <= index)
+			{
+				return false;
+			}
+
+			node->erase(node->begin() + index);
 			return true;
 		}
 
@@ -458,6 +662,78 @@ namespace ALL_AI
 			}
 
 			return static_cast<int>(node->size());
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayBack
+		 Description: Gets the last element of a JSON array
+		 Parameters:
+			 - Args...: The optional parameter must be a string, serving as an index pointing to the field in JSON
+		 Return: If the retrieval is successful, return std::optional<_T_Value>; otherwise, return std::nullopt
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayBack(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return std::nullopt;
+			}
+
+			return node->back().get<_T_Value>();
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayFront
+		 Description: Gets the first element of a JSON array
+		 Parameters:
+			 - Args...: The optional parameter must be a string, serving as an index pointing to the field in JSON
+		 Return: If the retrieval is successful, return std::optional<_T_Value>; otherwise, return std::nullopt
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayFront(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return std::nullopt;
+			}
+			return node->front().get<_T_Value>();
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayValue
+		 Description: Gets the value at the specified index of a JSON array
+		 Parameters:
+			 - size_t: The index
+			 - Args...: Variadic parameters, must be strings, used as JSON field indices
+		 Return: Returns std::optional<_T_Value> on success, std::nullopt otherwise
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayValue(size_t index, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+			if (node == nullptr || !node->is_array() || index >= node->size())
+			{
+				return std::nullopt;
+			}
+			return node->at(index).get<_T_Value>();
 		}
 
 		/*

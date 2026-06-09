@@ -46,6 +46,7 @@
 
 #include <curl/curl.h>
 #include <functional>
+#include <optional>
 
 #include "nlohmann/json.hpp"
 
@@ -95,31 +96,59 @@ namespace ALL_AI
 		ThrowError() {};
 		~ThrowError() {};
 
-		void SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function);
+		/*
+		============================================================================
+		Function: SetThrowErrorCallbackFunction
+		Description: 设置错误抛出的回调函数
+		Parameters:
+			- std::function<void(const std::string_view& message)> callback_function: 一个接受错误信息的回调函数
+		Return: 无返回值
+		============================================================================
+		*/
+		void SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
+		{
+			if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
+				callback_function != nullptr)
+			{
+				this->m_callback_function = callback_function;
+			}
+			return;
+		}
+
+		/*
+		============================================================================
+		Function: DoErrorThrow
+		Description: 执行错误抛出操作
+		Parameters:
+			- std::string_view message: 错误信息
+		Return: 无返回值
+		============================================================================
+		*/
+		void DoErrorThrow(std::string_view message)
+		{
+			if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+			{
+				throw std::runtime_error(std::string(message));
+			}
+			else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+			{
+				if (this->m_callback_function != nullptr)
+				{
+					this->m_callback_function(message);
+					return;
+				}
+			}
+			else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+			{
+				std::cerr << message << std::endl;
+				return;
+			}
+		}
 
 	protected:
 		ALL_AI_ErrorThrow m_ErrorThrow = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;
 		std::function<void(const std::string_view& message)> m_callback_function;
 	};
-
-	/*
-	============================================================================
-	Function: SetThrowErrorCallbackFunction
-	Description: 设置错误抛出的回调函数
-	Parameters:
-		- std::function<void(const std::string_view& message)> callback_function: 一个接受错误信息的回调函数
-	Return: 无返回值
-	============================================================================
-	*/
-	void ThrowError::SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
-	{
-		if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-			callback_function != nullptr)
-		{
-			this->m_callback_function = callback_function;
-		}
-		return;
-	}
 
 	// 请求构建策略
 	class IRequestBuilderStrategy : public ThrowError {
@@ -213,9 +242,29 @@ namespace ALL_AI
 			template <typename _T_Value, typename... Args>
 			bool SetValue(_T_Value value, Args... keys);
 
-			// 追加到数组（如果路径不存在则创建数组，如果存在但不是数组则失败）
+			// 追加到数组（如果路径不存在则创建数组，如果存在但不是数组则失败），且在数组末尾追加
 			template <typename _T_Value, typename... Args>
-			bool AppendToArray(_T_Value value, Args... keys);
+			bool ArrayPushBack(_T_Value value, Args... keys);
+
+			// 删除数组末尾元素（如果路径不存在或不是数组或数组为空则失败）
+			template <typename... Args>
+			bool ArrayDeleteBack(Args... keys);
+
+			// 在数组头部追加元素（如果路径不存在则创建数组，如果存在但不是数组则失败）
+			template <typename _T_Value, typename... Args>
+			bool ArrayPushFront(_T_Value value, Args... keys);
+
+			// 删除数组头部元素（如果路径不存在或不是数组或数组为空则失败）
+			template <typename... Args>
+			bool ArrayDeleteFront(Args... keys);
+
+			// 在数组指定索引处追加元素
+			template <typename _T_Value, typename... Args>
+			bool ArrayInsert(size_t index, _T_Value value, Args... keys);
+
+			// 删除数组指定索引处元素（如果路径不存在或不是数组或数组为空则失败）
+			template <typename... Args>
+			bool ArrayDelete(size_t index, Args... keys);
 
 			// 在数组指定索引处插入/替换
 			template <typename _T_Value, typename... Args>
@@ -224,6 +273,18 @@ namespace ALL_AI
 			// 获取数组长度（路径不存在返回0，不是数组返回-1）
 			template <typename... Args>
 			int GetArrayLength(Args... keys);
+
+			// 获取数组末尾元素（如果路径不存在或不是数组或数组为空则失败）
+			template <typename _T_Value, typename... Args>
+			std::optional<_T_Value> GetArrayBack(Args... keys);
+
+			// 获取数组头部元素（如果路径不存在或不是数组或数组为空则失败）
+			template <typename _T_Value, typename... Args>
+			std::optional<_T_Value> GetArrayFront(Args... keys);
+
+			// 获取数组指定索引处元素（如果路径不存在或不是数组或数组为空则失败）
+			template <typename _T_Value, typename... Args>
+			std::optional<_T_Value> GetArrayValue(size_t index, Args... keys);
 
 			// 创建空数组
 			template <typename... Args>
@@ -335,7 +396,7 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: AppendToArray
+		 Function: ArrayPushBack
 		 Description: 在json数组末尾追加元素
 		 Parameters:
 			 - _T_Value: 需要设置的值
@@ -344,7 +405,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
-		inline bool JsonRequestBuilder::AppendToArray(_T_Value value, Args... keys)
+		inline bool JsonRequestBuilder::ArrayPushBack(_T_Value value, Args ...keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -369,6 +430,149 @@ namespace ALL_AI
 		}
 
 		/*
+		 ============================================================================
+		 Function: ArrayDeleteBack
+		 Description: 删除json数组末尾的元素
+		 Parameters:
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 如果删除成功返回true，否则返回false
+		 ============================================================================
+		*/
+		template<typename ...Args>
+		inline bool JsonRequestBuilder::ArrayDeleteBack(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return false;
+			}
+
+			node->erase(node->end() - 1);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayPushFront
+		 Description: 在json数组开头追加元素
+		 Parameters:
+			 - _T_Value: 需要设置的值
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 如果设置成功返回true，否则返回false
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline bool JsonRequestBuilder::ArrayPushFront(_T_Value value, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			if (node == nullptr)
+			{
+				return false;
+			}
+			if (!node->is_array() && !node->is_null())
+			{
+				return false;
+			}
+
+			node->insert(node->begin(), value);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayDeleteFront
+		 Description: 删除json数组开头的元素
+		 Parameters:
+			 - _T_Value: 需要设置的值
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 如果设置成功返回true，否则返回false
+		 ============================================================================
+		*/
+		template<typename ...Args>
+		inline bool JsonRequestBuilder::ArrayDeleteFront(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return false;
+			}
+
+			node->erase(node->begin());
+			return true;
+		}
+		
+		/*
+		 ============================================================================
+		 Function: ArrayInsert
+		 Description: 在json数组指定下标插入元素
+		 Parameters:
+			 - _T_Value: 需要设置的值
+			 - size_t: 下标
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 如果设置成功返回true，否则返回false
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline bool JsonRequestBuilder::ArrayInsert(size_t index, _T_Value value, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = NavigateOrCreate(m_request_json, path, true);
+
+			if (node == nullptr)
+			{
+				return false;
+			}
+			if (!node->is_array() && !node->is_null())
+			{
+				return false;
+			}
+
+			node->insert(node->begin() + index, value);
+			return true;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ArrayDelete
+		 Description: 删除json数组指定下标的元素
+		 Parameters:
+			 - size_t: 下标
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 如果删除成功返回true，否则返回false
+		 ============================================================================
+		*/
+		template<typename ...Args>
+		inline bool JsonRequestBuilder::ArrayDelete(size_t index, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->size() <= index)
+			{
+				return false;
+			}
+
+			node->erase(node->begin() + index);
+			return true;
+		}
+
+		 /*
 		 ============================================================================
 		 Function: SetArrayValue
 		 Description: 设置json数组指定下标的值
@@ -451,6 +655,78 @@ namespace ALL_AI
 			}
 
 			return static_cast<int>(node->size());
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayBack
+		 Description: 获取json数组最后一个元素
+		 Parameters:
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 获取成功返回std::optional<_T_Value>，否则返回std::nullopt
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayBack(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return std::nullopt;
+			}
+
+			return node->back().get<_T_Value>();
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayFront
+		 Description: 获取json数组第一个元素
+		 Parameters:
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 获取成功返回std::optional<_T_Value>，否则返回std::nullopt
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayFront(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return std::nullopt;
+			}
+			return node->front().get<_T_Value>();
+		}
+
+		/*
+		 ============================================================================
+		 Function: GetArrayValue
+		 Description: 获取json数组指定下标的值
+		 Parameters:
+			 - size_t: 下标
+			 - Args...: 不定参数，必须是string，作为指向json的字段的索引
+		 Return: 获取成功返回std::optional<_T_Value>，否则返回std::nullopt
+		 ============================================================================
+		*/
+		template<typename _T_Value, typename ...Args>
+		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayValue(size_t index, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+			if (node == nullptr || !node->is_array() || index >= node->size())
+			{
+				return std::nullopt;
+			}
+			return node->at(index).get<_T_Value>();
 		}
 
 		/*
