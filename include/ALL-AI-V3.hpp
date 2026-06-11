@@ -26,6 +26,7 @@
 *	反馈/催更/交流邮箱: about@wang-sz.cn
 *
 *   如果本库对您有所帮助，您不妨给个star支持一下，您的star是我最大的动力！
+* 
 */
 
 
@@ -63,7 +64,7 @@
 #include <string.h>
 #endif
 
-// 跨平台弃用宏（放在公共头文件中）
+// 跨平台弃用宏
 #if defined(__cplusplus) && __cplusplus >= 201402L	// C++14 及以上：使用标准属性
 #define DEPRECATED(msg) [[deprecated(msg)]]
 #elif defined(__GNUC__) || defined(__clang__)	// GCC/Clang 扩展
@@ -76,7 +77,6 @@
 
 namespace ALL_AI
 {
-
 	// HTTP方法枚举，目前仅支持基于libcurl的会话
 	enum class HttpMethod {
 		POST,
@@ -107,7 +107,7 @@ namespace ALL_AI
 		*/
 		void SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
 		{
-			if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
+			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				callback_function != nullptr)
 			{
 				this->m_callback_function = callback_function;
@@ -126,32 +126,36 @@ namespace ALL_AI
 		*/
 		void DoErrorThrow(std::string_view message)
 		{
-			if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
+			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
 			{
 				throw std::runtime_error(std::string(message));
 			}
-			else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
+			else if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
 			{
 				if (this->m_callback_function != nullptr)
 				{
 					this->m_callback_function(message);
-					return;
+				}
+				else
+				{
+					std::cerr << "Error: No valid callback function set for error throwing." << std::endl;
+					std::cerr << "Message: " << message << std::endl;
 				}
 			}
-			else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
+			else if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
 			{
 				std::cerr << message << std::endl;
-				return;
 			}
+			return;
 		}
 
 	protected:
-		ALL_AI_ErrorThrow m_ErrorThrow = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;
-		std::function<void(const std::string_view& message)> m_callback_function;
+		ALL_AI_ErrorThrow m_error_throw_method = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;
+		std::function<void(const std::string_view& message)>	m_callback_function;
 	};
 
 	// 请求构建策略
-	class IRequestBuilderStrategy : public ThrowError {
+	class IRequestBuilderStrategy : virtual public ThrowError {
 	public:
 		virtual ~IRequestBuilderStrategy() = default;
 		DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
@@ -163,7 +167,7 @@ namespace ALL_AI
 	};
 
 	// 响应解析策略
-	class IResponseParserStrategy : public ThrowError {
+	class IResponseParserStrategy : virtual public ThrowError {
 	public:
 		virtual ~IResponseParserStrategy() = default;
 		virtual void Parse(const nlohmann::json& response) = 0;
@@ -332,7 +336,6 @@ namespace ALL_AI
 
 		private:
 			nlohmann::json m_request_json;
-
 			mutable std::mutex m_mutex_request;
 		};
 
@@ -1092,25 +1095,8 @@ namespace ALL_AI
 				}
 				catch (const nlohmann::json::exception& e)
 				{
-					std::string err = e.what();
-
-					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("JsonParser::Parse: " + err);
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						if (this->m_callback_function != nullptr)
-						{
-							this->m_callback_function(err);
-							return;
-						}
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "JsonParser::Parse: " << err << std::endl;
-						return;
-					}
+					DoErrorThrow(e.what());
+					return;
 				}
 			}
 
@@ -1181,20 +1167,8 @@ namespace ALL_AI
 				// 数组索引
 				if (!_json.is_array() || key < 0 || key >= _json.size())
 				{
-					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::out_of_range("Array index out of bounds: " + std::to_string(key));
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-						this->m_callback_function != nullptr)
-					{
-
-						this->m_callback_function("Array index out of bounds: " + std::to_string(key));
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Array index out of bounds: " << key << std::endl;
-					}
+					std::string err = "Array index out of bounds: " + std::to_string(key);
+					DoErrorThrow(err);
 					return _T_Type{};
 				}
 				return _json.at(key);
@@ -1204,19 +1178,8 @@ namespace ALL_AI
 				// 对象键
 				if (!_json.contains(key))
 				{
-					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::out_of_range("Key not found: " + std::string(key));
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-						this->m_callback_function != nullptr)
-					{
-						this->m_callback_function("Key not found: " + std::string(key));
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Key not found: " << key << std::endl;
-					}
+					std::string err = "Key not found: " + std::string(key);
+					DoErrorThrow(err);
 					return _T_Type{};
 				}
 				return _json.at(key);
@@ -1246,20 +1209,8 @@ namespace ALL_AI
 				// 数组索引
 				if (!_json.is_array() || first < 0 || first >= _json.size())
 				{
-					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::out_of_range("Array index out of bounds");
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-						this->m_callback_function != nullptr)
-					{
-
-						this->m_callback_function("Array index out of bounds: " + std::to_string(first));
-					}
-					else if(this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Array index out of bounds: " << first << std::endl;
-					}
+					std::string err = "Array index out of bounds: " + std::to_string(first);
+					DoErrorThrow(err);
 					return _T_Type{};
 				}
 				next_json = _json.at(first);
@@ -1270,20 +1221,8 @@ namespace ALL_AI
 				if (!_json.contains(first))
 				{
 					// 根据错误抛出方式处理错误
-					if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::out_of_range("Key not found: " + std::string(first));
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-						this->m_callback_function != nullptr)
-					{
-
-						this->m_callback_function("Key not found: " + std::string(first));
-					}
-					else if (this->m_ErrorThrow == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Key not found: " << first << std::endl;	
-					}
+					std::string err = "Key not found: " + std::string(first);
+					DoErrorThrow(err);
 					return _T_Type{};
 				}
 				next_json = _json.at(first);
@@ -1406,7 +1345,7 @@ namespace ALL_AI
 	};
 
 	// 抽象HTTP传输接口，定义了发送HTTP请求的方法
-	class IHttpTransport {
+	class IHttpTransport : public ThrowError {
 	public:
 		IHttpTransport() = default;
 		virtual ~IHttpTransport() = default;
@@ -1414,15 +1353,12 @@ namespace ALL_AI
 		virtual bool Initialize(const std::string& url, const std::string& api_key, const ALL_AI_ErrorThrow all_ai_error_throw) = 0;
 		// 发送HTTP请求
 		virtual nlohmann::json SendRequest(HttpMethod method, const nlohmann::json request_json) = 0;
-
-		// 设置错误回调函数
-		virtual void SetErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_func) = 0;
 	};
 
 	namespace HttpTransport
 	{
 		// 基于libcurl的HTTP传输实现
-		class CurlHttpTransport final : public IHttpTransport {
+		class CurlHttpTransport final : public IHttpTransport{
 		public:
 
 			/*
@@ -1473,41 +1409,19 @@ namespace ALL_AI
 			{
 				if (url.empty() || api_key.empty())
 				{
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("CurlHttpTransport: url or api_key is empty");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("CurlHttpTransport: url or api_key is empty");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "CurlHttpTransport: url or api_key is empty" << std::endl;
-					}
+					DoErrorThrow("CurlHttpTransport: url or api_key is empty");
 					return false;
 				}
 				this->m_url = url;
 				this->m_key = api_key;
-				this->m_error_throw = all_ai_error_throw;
+				this->m_error_throw_method = all_ai_error_throw;
 
 				// 初始化 libcurl
 				this->m_curl = curl_easy_init();
 				if (!this->m_curl)
 				{
 					// 如果初始化失败，根据错误抛出方式处理错误
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("CurlHttpTransport: curl_easy_init failed");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("CurlHttpTransport: curl_easy_init failed");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "CurlHttpTransport: curl_easy_init failed" << std::endl;
-					}
+					DoErrorThrow("CurlHttpTransport: curl_easy_init failed");
 					return false;
 				}
 
@@ -1541,6 +1455,7 @@ namespace ALL_AI
 				// 如果初始化失败，则在请求时返回空json
 				if (this->m_curl == nullptr)
 				{
+					DoErrorThrow("CurlHttpTransport: curl is not initialized or failed to initialize");
 					return nlohmann::json{};
 				}
 				if (method == HttpMethod::POST)
@@ -1559,8 +1474,9 @@ namespace ALL_AI
 				struct curl_slist* headers = nullptr;
 				const bool is_stream = request_json.contains("stream") && request_json["stream"].is_boolean() && request_json["stream"].get<bool>();
 				headers = curl_slist_append(headers, is_stream ? "Accept: text/event-stream" : "Accept: application/json");
-				if (CheckStringEmpty(this->m_key))
+				if (this->m_key.empty())
 				{
+					DoErrorThrow("CurlHttpTransport: API key is empty");
 					return nlohmann::json{};
 				}
 				std::string authHeader = "Authorization: Bearer " + this->m_key;
@@ -1569,7 +1485,6 @@ namespace ALL_AI
 				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
 
 				// 清理可能的残留标志
-				// clear flags
 				curl_easy_setopt(this->m_curl, CURLOPT_POST, 0L);
 				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, nullptr);
 				curl_easy_setopt(this->m_curl, CURLOPT_NOBODY, 0L);
@@ -1594,19 +1509,8 @@ namespace ALL_AI
 				if (res != CURLE_OK)
 				{
 					std::string error_message = "curl_easy_perform failed: " + std::string(curl_easy_strerror(res));
-					curl_slist_free_all(headers); // Ensure we free headers
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error(error_message);
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function(error_message);
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << error_message << std::endl;
-					}
+					curl_slist_free_all(headers); // Ensure we free headers 确保释放headers
+					DoErrorThrow(error_message);
 					return nlohmann::json{};
 				}
 
@@ -1617,25 +1521,15 @@ namespace ALL_AI
 				{
 					std::string error_message = "HTTP error: " + std::to_string(http_code) + ", Response: " + str_Buffer;
 					curl_slist_free_all(headers);
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error(error_message);
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function(error_message);
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << error_message << std::endl;
-					}
+					DoErrorThrow(error_message);
 					return nlohmann::json{};
 				}
 
 				// Check if response is empty
-				if (CheckStringEmpty(str_Buffer))
+				if (str_Buffer.empty())
 				{
 					curl_slist_free_all(headers);
+					DoErrorThrow("Empty response received from server");
 					return nlohmann::json{};
 				}
 
@@ -1654,102 +1548,14 @@ namespace ALL_AI
 					{
 						std::string error_message = "Error: Session: JSON parse failed. Response: " + str_Buffer + ", Error: " + e.what();
 						curl_slist_free_all(headers);
-						if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-						{
-							throw std::runtime_error(error_message);
-						}
-						else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-						{
-							this->m_callback_function(error_message);
-							return nlohmann::json{};
-						}
-						else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-						{
-							std::cerr << error_message << std::endl;
-							return nlohmann::json{};
-						}
+						DoErrorThrow(error_message);
+						return nlohmann::json{};
 					}
 				}
 
 				// Clean up headers
 				curl_slist_free_all(headers);
 				return json_result;
-			}
-
-			/*
-			 ============================================================================
-			 Function: SetErrorCallbackFunction
-			 Description: 设置错误回调函数
-			 Parameters:
-			   - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数
-			 Return: 无返回值
-			 ============================================================================
-			*/
-			virtual void SetErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_func) override
-			{
-				this->m_callback_function = callback_func;
-			}
-
-			/*
-			 ============================================================================
-			 Function: SetErrorThrow
-			 Description: 设置错误抛方式
-			 Parameters:
-			   - ALL_AI_ErrorThrow: 错误抛出方式
-			 Return: 无
-			 ============================================================================
-			*/
-			virtual void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
-			{
-				this->m_error_throw = error_throw;
-			}
-
-			/*
-			 ============================================================================
-			 Function: CheckStringEmpty
-			 Description: 检查字符串是否为空
-			 Parameters:
-			   - const std::string& str: 要检查的字符串
-			 Return: 返回一个布尔值，表示字符串是否为空
-			 ============================================================================
-			*/
-			virtual bool CheckStringEmpty(const std::string& str)
-			{
-				if(str.empty())
-				{
-					if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-					{
-						throw std::runtime_error("Empty string");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION)
-					{
-						this->m_callback_function("Empty string");
-					}
-					else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-					{
-						std::cerr << "Empty string" << std::endl;
-					}
-					return true;
-				}
-				else
-				{
-					return false;
-				}
-			}
-
-			/*
-			 ============================================================================
-			 Function: SetErrorThrowCallbackFunction
-			 Description: 设置错误抛出回调函数
-			 Parameters:
-			   - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
-			 Return: 无
-			 ============================================================================
-			*/
-			void SetErrorThrowCallbackFunction(std::function<void(const std::string_view& message)> callback_func)
-			{
-				this->m_callback_function = std::move(callback_func);
-				return;
 			}
 
 		private:
@@ -1958,14 +1764,10 @@ namespace ALL_AI
 
 			std::string m_url;	// API - URL
 			std::string m_key;		// API - Key
-
-			ALL_AI_ErrorThrow m_error_throw = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;
-
-			std::function<void(const std::string_view& message)> m_callback_function = nullptr;
 		};
 	}
 
-	class AI {
+	class AI : public ThrowError {
 	public:
 
 		/*
@@ -1997,8 +1799,9 @@ namespace ALL_AI
 			const ALL_AI_ErrorThrow all_ai_error_throw = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW) :
 			m_transport(std::move(transport)),
 			m_url(url),
-			m_api_key(api_key),
-			m_error_throw(all_ai_error_throw) {
+			m_api_key(api_key)
+		{
+			this->m_error_throw_method = all_ai_error_throw;
 		}
 
 		/*
@@ -2014,35 +1817,6 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: SetErrorThrowCallbackFunction
-		 Description: 设置错误抛出回调函数
-		 Parameters:
-			 - std::function<void(const std::string_view& message)>: 一个接受错误信息的回调函数，函数参数为一个字符串视图，表示错误信息
-		 Return: 无返回值
-		 ============================================================================
-		*/
-		bool SetErrorThrowCallbackFunction(std::function<void(const std::string_view& message)> callback_func)
-		{
-			// 设置错误抛出方式为回调函数，并保存回调函数
-			if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-				callback_func != nullptr)
-			{
-				this->m_callback_function = std::move(callback_func);
-				if (this->m_transport)
-				{
-					this->m_transport->SetErrorCallbackFunction(callback_func);
-				}
-				return true;
-			}
-			else
-			{
-				return false;
-			}
-			return false;
-		}
-
-		/*
-		 ============================================================================
 		 Function: SetErrorThrow
 		 Description: 设置错误抛出方式
 		 Parameters:
@@ -2052,7 +1826,7 @@ namespace ALL_AI
 		*/
 		void SetErrorThrow(ALL_AI_ErrorThrow error_throw)
 		{
-			this->m_error_throw = error_throw;
+			this->m_error_throw_method = error_throw;
 			return;
 		}
 
@@ -2123,12 +1897,15 @@ namespace ALL_AI
 			std::lock_guard<std::mutex> lock(this->m_mutex_ai_init);
 
 			// 如果初始化过则直接返回false，表示不需要重复初始化
-			if (this->m_initialized == true)
+			// 如果URL、API Key或HTTP传输接口未设置，根据错误抛出方式处理错误并返回false
+			if (this->m_initialized == true || 
+				this->m_url.empty() || this->m_api_key.empty() || this->m_transport == nullptr)
 			{
+				DoErrorThrow("The API station URL, API key, or HTTP transmission interface is empty. Please check the configuration");
 				return false;
 			}
 			// 设置构建器与解析器的错误抛出方式
-			if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
+			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				this->m_callback_function != nullptr)
 			{
 				// 这里不需要加锁，因为InitAI不与SendRequest并发（由用户保证或m_initialized标志）
@@ -2137,22 +1914,16 @@ namespace ALL_AI
 				this->m_parser.SetThrowErrorCallbackFunction(this->m_callback_function);
 			}
 
-			// 获取配置的副本进行初始化
-			std::string url_copy;
-			std::string key_copy;
-			std::shared_ptr<IHttpTransport> transport_copy;
+			// 初始化HTTP传输接口
 			{
 				std::lock_guard<std::mutex> lock(this->m_mutex_config);
-				url_copy = this->m_url;
-				key_copy = this->m_api_key;
-				transport_copy = this->m_transport;
+				if (this->m_transport)
+				{
+					this->m_initialized = this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw_method);
+					return this->m_initialized;
+				}
 			}
-
-			if (transport_copy)
-			{
-				this->m_initialized = transport_copy->Initialize(url_copy, key_copy, this->m_error_throw);
-			}
-			return this->m_initialized;
+			return false;
 		}
 
 		/*
@@ -2173,25 +1944,21 @@ namespace ALL_AI
 			// 获取配置锁，更新配置
 			std::lock_guard<std::mutex> lock(this->m_mutex_config);
 
-			if (!url.empty())
+			// 如果某个参数为空，返回false。以避免错误配置；如果不为空，则更新配置
+			if (url.empty() || api_key.empty() || transport == nullptr)
+			{
+				DoErrorThrow("AI: ReloadAI failed due to empty url, api_key, or null transport");
+				return false;
+			}
+			else
 			{
 				this->m_url = url;
-			}
-			if (!api_key.empty())
-			{
 				this->m_api_key = api_key;
-			}
-			if (transport != nullptr)
-			{
 				this->m_transport = std::move(transport);
 			}
 
 			// 重新初始化Transport
-			if (this->m_transport)
-			{
-				return this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw);
-			}
-			return false;
+			return this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw_method);
 		}
 
 		/*
@@ -2215,19 +1982,7 @@ namespace ALL_AI
 			// 如果HTTP传输接口未设置，根据错误抛出方式处理错误
 			if (!transport_local)
 			{
-				if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
-				{
-					throw std::runtime_error("AI: HTTP transport is not set");
-				}
-				else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
-					this->m_callback_function != nullptr)
-				{
-					this->m_callback_function("AI: HTTP transport is not set");
-				}
-				else if (this->m_error_throw == ALL_AI_ErrorThrow::ALL_AI_PRINT_ERROR)
-				{
-					std::cerr << "AI: HTTP transport is not set" << std::endl;
-				}
+				DoErrorThrow("AI: HTTP transport is not set");
 				return nlohmann::json{};
 			}
 
@@ -2360,10 +2115,7 @@ namespace ALL_AI
 		std::string m_url;	// API - URL
 		std::string m_api_key;	// API - Key
 
-		ALL_AI_ErrorThrow m_error_throw = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;		// 错误抛出方式
-
 		std::shared_ptr<IHttpTransport> m_transport;	// HTTP传输接口
-		std::function<void(const std::string_view& message)> m_callback_function = nullptr;		// 错误回调函数
 
 		std::mutex m_mutex_config;		// 配置互斥锁（保护 URL, Key, Transport）
 		std::mutex m_mutex_ai_init;		// AI初始化互斥锁
