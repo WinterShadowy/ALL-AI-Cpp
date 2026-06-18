@@ -355,7 +355,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
-		bool JsonRequestBuilder::SetValue(_T_Value value, Args... keys)
+		inline bool JsonRequestBuilder::SetValue(_T_Value value, Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -592,7 +592,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Value, typename... Args>
-		bool JsonRequestBuilder::SetArrayValue(_T_Value value, size_t index, Args... keys)
+		inline bool JsonRequestBuilder::SetArrayValue(_T_Value value, size_t index, Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -643,7 +643,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		int JsonRequestBuilder::GetArrayLength(Args... keys)
+		inline int JsonRequestBuilder::GetArrayLength(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -747,7 +747,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::CreateArray(Args... keys)
+		inline bool JsonRequestBuilder::CreateArray(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -773,7 +773,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::CreateObject(Args... keys)
+		inline bool JsonRequestBuilder::CreateObject(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -800,7 +800,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		bool JsonRequestBuilder::ClearArray(Args... keys)
+		inline bool JsonRequestBuilder::ClearArray(Args... keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
 
@@ -832,7 +832,7 @@ namespace ALL_AI
 		 Return: None
 		 ============================================================================
 		*/
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path)
 		{
 		}
 
@@ -846,7 +846,7 @@ namespace ALL_AI
 		 Return: None
 		 ============================================================================
 		*/
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const std::string& _key)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const std::string& _key)
 		{
 			_path.emplace_back(_key);
 		}
@@ -861,7 +861,7 @@ namespace ALL_AI
 		 Return: None
 		 ============================================================================
 		*/
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const char* _key)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const char* _key)
 		{
 			_path.emplace_back(std::string(_key));
 		}
@@ -876,7 +876,7 @@ namespace ALL_AI
 		 Return: None
 		 ============================================================================
 		*/
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, size_t _index)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, size_t _index)
 		{
 			_path.emplace_back(_index);
 		}
@@ -891,7 +891,7 @@ namespace ALL_AI
 		 Return: None
 		 ============================================================================
 		*/
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, int _index)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, int _index)
 		{
 			if (_index < 0)
 			{
@@ -912,7 +912,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename T, typename... Rest>
-		void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest)
 		{
 			BuildPathImpl(_path, std::forward<T>(_first));
 			BuildPathImpl(_path, std::forward<Rest>(rest)...);
@@ -928,7 +928,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename... Args>
-		std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... _args)
+		inline std::vector<JsonRequestBuilder::PathKey> JsonRequestBuilder::BuildPath(Args&&... _args)
 		{
 			std::vector<PathKey> path;
 			BuildPathImpl(path, std::forward<Args>(_args)...);
@@ -946,7 +946,7 @@ namespace ALL_AI
 		 Return: nlohmann::json*, returns nullptr if path doesn't exist, otherwise returns node pointer
 		 ============================================================================
 		*/
-		nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& _root, const std::vector<PathKey>& _path, bool _createMissing)
+		inline nlohmann::json* JsonRequestBuilder::NavigateOrCreate(nlohmann::json& _root, const std::vector<PathKey>& _path, bool _createMissing)
 		{
 			nlohmann::json* current = &_root;
 
@@ -1024,7 +1024,7 @@ namespace ALL_AI
 		 Return: nlohmann::json*, returns nullptr if path doesn't exist, otherwise returns node pointer
 		 ============================================================================
 		*/
-		nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path)
+		inline nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path)
 		{
 			nlohmann::json* current = &_root;
 
@@ -1149,7 +1149,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename... _Keys>
-		_T_Type JsonResponceParser::GetValue(_Keys... _keys)
+		inline _T_Type JsonResponceParser::GetValue(_Keys... _keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_response);
 			return _getValue<_T_Type>(this->m_response_json, std::forward<_Keys>(_keys)...);
@@ -1166,7 +1166,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename _Key>
-		_T_Type JsonResponceParser::_getValue(const nlohmann::json& _json, _Key&& key)
+		inline _T_Type JsonResponceParser::_getValue(const nlohmann::json& _json, _Key&& key)
 		{
 			if constexpr (std::is_integral_v<std::decay_t<_Key>>)
 			{
@@ -1204,7 +1204,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename _First, typename... Args>
-		_T_Type JsonResponceParser::_getValue(const nlohmann::json& _json, _First&& first, Args... rest)
+		inline _T_Type JsonResponceParser::_getValue(const nlohmann::json& _json, _First&& first, Args... rest)
 		{
 			nlohmann::json next_json = nullptr;
 
