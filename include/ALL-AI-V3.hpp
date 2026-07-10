@@ -1353,6 +1353,8 @@ namespace ALL_AI
 		virtual bool Initialize(const std::string& url, const std::string& api_key, const ALL_AI_ErrorThrow all_ai_error_throw) = 0;
 		// 发送HTTP请求
 		virtual nlohmann::json SendRequest(HttpMethod method, const nlohmann::json request_json) = 0;
+		// 清除HTTP传输接口的资源
+		virtual void ClearResource() = 0;
 	};
 
 	namespace HttpTransport
@@ -1415,6 +1417,13 @@ namespace ALL_AI
 				this->m_url = url;
 				this->m_key = api_key;
 				this->m_error_throw_method = all_ai_error_throw;
+				
+				// 判断是否已经初始化过
+				// 如果已经初始化过，则关闭已经初始化的libcurl
+				if (this->m_curl != nullptr)
+				{
+					ClearResource();
+				}
 
 				// 初始化 libcurl
 				this->m_curl = curl_easy_init();
@@ -1557,7 +1566,22 @@ namespace ALL_AI
 				curl_slist_free_all(headers);
 				return json_result;
 			}
-
+			
+			/*
+			 ============================================================================
+			 Function: ClearResource
+			 Description: 清除HTTP传输接口
+			 Parameters:
+				- 无参数: 无释义
+			 Return: 无返回值
+			 ============================================================================
+			*/
+			virtual void ClearResource() override
+			{
+				// 清理libcurl
+				curl_easy_cleanup(this->m_curl);
+				return;
+			}
 		private:
 
 			/*
@@ -1945,15 +1969,16 @@ namespace ALL_AI
 			std::lock_guard<std::mutex> lock(this->m_mutex_config);
 
 			// 如果某个参数为空，返回false。以避免错误配置；如果不为空，则更新配置
-			if (url.empty() || api_key.empty() || transport == nullptr)
-			{
-				DoErrorThrow("AI: ReloadAI failed due to empty url, api_key, or null transport");
-				return false;
-			}
-			else
+			if (false == url.empty())
 			{
 				this->m_url = url;
+			}
+			if (false == api_key.empty())
+			{
 				this->m_api_key = api_key;
+			}
+			if(nullptr != transport)
+			{
 				this->m_transport = std::move(transport);
 			}
 
