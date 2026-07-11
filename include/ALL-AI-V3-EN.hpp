@@ -1392,11 +1392,7 @@ namespace ALL_AI
 			*/
 			~CurlHttpTransport()
 			{
-				if (this->m_curl != nullptr)
-				{
-					// Clean up libcurl
-					curl_easy_cleanup(this->m_curl);
-				}
+				ClearResource();
 			}
 
 			/*
@@ -1583,8 +1579,12 @@ namespace ALL_AI
 			*/
 			virtual void ClearResource() override
 			{
-				// 清理libcurl
-				curl_easy_cleanup(this->m_curl);
+				if(this->m_curl != nullptr)
+				{
+					// Clean up libcurl
+					curl_easy_cleanup(this->m_curl);
+					this->m_curl = nullptr;
+				}
 				return;
 			}
 		private:
