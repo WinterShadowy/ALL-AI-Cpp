@@ -12,6 +12,8 @@
 *
 *   很高兴您的使用
 *
+*	I'm glad you're using it
+*
 * ====================================================================================================
 *
 *   声明/开发者的话：
@@ -20,8 +22,8 @@
 *		2.5 很幸运，开发者找到了工作。
 *   3. 开源协议： MIT
 *
-*	本库在线文档: https://doc.cpluscottage.top/web/#/642380673
-*	开发者个人博客: https://xunlizhili.com
+*	本库在线文档: https://ai-cpp-docsify.cpluscottage.top/
+*	开发者个人博客: https://blog.wang-sz.cn
 *	反馈/催更/交流邮箱: about@wang-sz.cn
 *
 *   如果本库对您有所帮助，您不妨给个star支持一下，您的star是我最大的动力！
@@ -54,27 +56,52 @@
 
 #include "nlohmann/json.hpp"
 
-// Windows
-#if ((defined(_WIN32) || defined(_WIN64)) && defined(_MSC_VER))
-#define WIN_MSVC_VER 0L
-#include <windows.h>
-#include <strsafe.h>
 
-// windows.h 中定义的 DELETE 宏与 HttpMethod::DELETE 枚举值冲突，此处取消定义
-// 注意：如果用户代码在本头文件之后又包含了windows.h，需要自行再次 #undef DELETE
-#if (defined(DELETE))
-#undef DELETE
+#if ((defined(_WIN32) || defined(_WIN64)) && defined(_MSC_VER))    // Windows
+	#define WIN_MSVC_VER 0L
+	#include <windows.h>
+	#include <strsafe.h>
+	// windows.h 中定义的 DELETE 宏与 HttpMethod::DELETE 枚举值冲突，此处取消定义
+	// 注意：如果用户代码在本头文件之后又包含了windows.h，需要自行再次 #undef DELETE
+	#if (defined(DELETE))
+		#undef DELETE
+	#endif
+#elif __linux__		// linux
+	#define LINUX_VER 1L
+	#include <stdlib.h>
+	#include <string.h>
 #endif
 
-// linux
-#elif __linux__ 
-#define LINUX_VER 1L
-#include <stdlib.h>
-#include <string.h>
+#if defined(WIN_MSVC_VER)
+	#define __ALL_AI_CXX_STANDARD _MSVC_LANG
+#elif defined(LINUX_VER)
+	# define __ALL_AI_CXX_STANDARD __cplusplus
+#endif
+
+#if __ALL_AI_CXX_STANDARD >= 202002L
+#define __ALL_AI_CPP_VERSION_20 20L
+#elif __ALL_AI_CXX_STANDARD >= 201703L
+#define __ALL_AI_CPP_VERSION_17 17L
+#elif __ALL_AI_CXX_STANDARD >= 201402L
+#define __ALL_AI_CPP_VERSION_14 14L
+#elif __ALL_AI_CXX_STANDARD >= 201103L
+#define __ALL_AI_CPP_VERSION_11 11L
+#else
+#error "The C++ version is too low. This library does not support this C++ standard."
+#endif
+
+#if defined (__ALL_AI_CPP_VERSION_20)
+#define __ALL_AI_CXX_VERSION 20L
+#elif defined (__ALL_AI_CPP_VERSION_17)
+#define __ALL_AI_CXX_VERSION 17L
+#elif defined (__ALL_AI_CPP_VERSION_14)
+#define __ALL_AI_CXX_VERSION 14L
+#elif defined (__ALL_AI_CPP_VERSION_11)
+#define __ALL_AI_CXX_VERSION 11L
 #endif
 
 // 跨平台弃用宏
-#if defined(__cplusplus) && __cplusplus >= 201402L	// C++14 及以上：使用标准属性
+#if __ALL_AI_CXX_STANDARD >= 201402L	// C++14 及以上：使用标准属性
 #define DEPRECATED(msg) [[deprecated(msg)]]
 #elif defined(__GNUC__) || defined(__clang__)	// GCC/Clang 扩展
 #define DEPRECATED(msg) __attribute__((deprecated(msg)))
@@ -1105,6 +1132,7 @@ namespace ALL_AI
 			*/
 			virtual void Parse(const std::string& response) override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_response);
 				try
 				{
 					this->m_response_json = std::move(nlohmann::json::parse(response));
@@ -1127,6 +1155,7 @@ namespace ALL_AI
 			*/
 			virtual nlohmann::json GetData() override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_response);
 				return this->m_response_json;
 			}
 
@@ -1303,6 +1332,7 @@ namespace ALL_AI
 		*/
 		nlohmann::json::array_t GetMessagesArray()
 		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_json);
 			return this->m_array;
 		}
 
@@ -1885,6 +1915,8 @@ namespace ALL_AI
 				const std::string& api_key,
 				const ALL_AI_ErrorThrow all_ai_error_throw) override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
+
 				if (url.empty() || api_key.empty())
 				{
 					DoErrorThrow("CurlHttpTransport: url or api_key is empty");
@@ -2301,6 +2333,7 @@ namespace ALL_AI
 			*/
 			virtual void ClearResource() override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
 				if (this->m_curl != nullptr)
 				{
 					// 清理libcurl
@@ -2650,7 +2683,15 @@ namespace ALL_AI
 	   */
 		bool InitAI()
 		{
-			std::lock_guard<std::mutex> lock(this->m_mutex_ai_init);
+#if __ALL_AI_CXX_VERSION >= 17L
+			std::scoped_lock lock(this->m_mutex_ai_init, this->m_mutex_config);
+#elif (__ALL_AI_CXX_VERSION < 17L && __ALL_AI_CXX_VERSION >= 11L)
+			std::lock_guard<std::mutex> lock_config(this->m_mutex_config);
+			std::lock_guard<std::mutex> lock_init(this->m_mutex_ai_init);
+#else
+			return false;
+#endif
+
 
 			// 如果初始化过则直接返回false，表示不需要重复初始化
 			// 如果URL、API Key或HTTP传输接口未设置，根据错误抛出方式处理错误并返回false
@@ -2671,13 +2712,10 @@ namespace ALL_AI
 			}
 
 			// 初始化HTTP传输接口
+			if (this->m_transport)
 			{
-				std::lock_guard<std::mutex> lock(this->m_mutex_config);
-				if (this->m_transport)
-				{
-					this->m_initialized = this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw_method);
-					return this->m_initialized;
-				}
+				this->m_initialized = this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw_method);
+				return this->m_initialized;
 			}
 			return false;
 		}
@@ -2697,8 +2735,14 @@ namespace ALL_AI
 			std::string api_key = "",
 			std::shared_ptr<IHttpTransport> transport = std::make_shared<HttpTransport::CurlHttpTransport>())
 		{
-			// 获取配置锁，更新配置
-			std::lock_guard<std::mutex> lock(this->m_mutex_config);
+#if __ALL_AI_CXX_VERSION >= 17L
+			std::scoped_lock lock(this->m_mutex_ai_init, this->m_mutex_config);
+#elif (__ALL_AI_CXX_VERSION < 17L && __ALL_AI_CXX_VERSION >= 11L)
+			std::lock_guard<std::mutex> lock_config(this->m_mutex_config);
+			std::lock_guard<std::mutex> lock_init(this->m_mutex_ai_init);
+#else
+			return false;
+#endif
 
 			// 如果某个参数为空，返回false。以避免错误配置；如果不为空，则更新配置
 			if (false == url.empty())
@@ -2743,11 +2787,8 @@ namespace ALL_AI
 				return nlohmann::json{};
 			}
 
-			// 这里的 SendRequest 是线程安全的（CurlHttpTransport 已加锁）
-			// 这里的 Parse 也是线程安全的（JsonResponceParser 已加锁）
 			nlohmann::json result = transport_local->SendRequest(method, request_json);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -2849,8 +2890,7 @@ namespace ALL_AI
 			std::unordered_map<std::string, std::string> form_fields;
 			form_fields["purpose"] = purpose;
 			nlohmann::json result = transport_local->SendMultipartRequest(target_url, file_path, "file", form_fields);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -2950,8 +2990,7 @@ namespace ALL_AI
 
 			std::string str_result = SendFileRawRequest(HttpMethod::GET, target_url);
 			nlohmann::json result = ParseRawToJson(str_result);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -2979,8 +3018,7 @@ namespace ALL_AI
 
 			std::string str_result = SendFileRawRequest(HttpMethod::GET, target_url + "/" + file_id);
 			nlohmann::json result = ParseRawToJson(str_result);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -3035,8 +3073,7 @@ namespace ALL_AI
 
 			std::string str_result = SendFileRawRequest(HttpMethod::DELETE, target_url + "/" + file_id);
 			nlohmann::json result = ParseRawToJson(str_result);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -3190,6 +3227,8 @@ namespace ALL_AI
 				return nlohmann::json{};
 			}
 		}
+
+	private:
 
 		std::string m_url;	// API - URL
 		std::string m_api_key;	// API - Key

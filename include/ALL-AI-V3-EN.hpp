@@ -24,7 +24,7 @@
 *   Feedback / updates / contact email: about@wang-sz.cn
 *
 *   If this library helps you, please consider giving it a star. Your support is my greatest motivation!
-* 
+*
 */
 
 
@@ -53,27 +53,52 @@
 
 #include "nlohmann/json.hpp"
 
-// Windows
-#if ((defined(_WIN32) || defined(_WIN64)) && defined(_MSC_VER))
-#define WIN_MSVC_VER 0L
-#include <windows.h>
-#include <strsafe.h>
 
-// The DELETE macro defined in windows.h conflicts with the HttpMethod::DELETE enumerator, so undefine it here
-// Note: if user code includes windows.h again AFTER this header, #undef DELETE must be applied once more
-#if (defined(DELETE))
-#undef DELETE
-#endif
-
-// linux
-#elif __linux__ 
+#if ((defined(_WIN32) || defined(_WIN64)) && defined(_MSC_VER))		// Windows
+	#define WIN_MSVC_VER 0L
+	#include <windows.h>
+	#include <strsafe.h>
+	// The DELETE macro defined in windows.h conflicts with the HttpMethod::DELETE enumerator, so undefine it here
+	// Note: if user code includes windows.h again AFTER this header, #undef DELETE must be applied once more
+	#if (defined(DELETE))
+		#undef DELETE
+	#endif
+#elif __linux__		// linux
 #define LINUX_VER 1L
 #include <stdlib.h>
 #include <string.h>
 #endif
 
+#if defined(WIN_MSVC_VER)
+#define __ALL_AI_CXX_STANDARD _MSVC_LANG
+#elif defined(LINUX_VER)
+# define __ALL_AI_CXX_STANDARD __cplusplus
+#endif
+
+#if __ALL_AI_CXX_STANDARD >= 202002L
+#define __ALL_AI_CPP_VERSION_20 20L
+#elif __ALL_AI_CXX_STANDARD >= 201703L
+#define __ALL_AI_CPP_VERSION_17 17L
+#elif __ALL_AI_CXX_STANDARD >= 201402L
+#define __ALL_AI_CPP_VERSION_14 14L
+#elif __ALL_AI_CXX_STANDARD >= 201103L
+#define __ALL_AI_CPP_VERSION_11 11L
+#else
+#error "The C++ version is too low. This library does not support this C++ standard."
+#endif
+
+#if defined (__ALL_AI_CPP_VERSION_20)
+#define __ALL_AI_CXX_VERSION 20L
+#elif defined (__ALL_AI_CPP_VERSION_17)
+#define __ALL_AI_CXX_VERSION 17L
+#elif defined (__ALL_AI_CPP_VERSION_14)
+#define __ALL_AI_CXX_VERSION 14L
+#elif defined (__ALL_AI_CPP_VERSION_11)
+#define __ALL_AI_CXX_VERSION 11L
+#endif
+
 // Cross-platform deprecation macro
-#if defined(__cplusplus) && __cplusplus >= 201402L	// C++14 and above: use standard attribute
+#if __ALL_AI_CXX_STANDARD >= 201402L	// C++14 and above: use standard attribute
 #define DEPRECATED(msg) [[deprecated(msg)]]
 #elif defined(__GNUC__) || defined(__clang__)	// GCC/Clang extension
 #define DEPRECATED(msg) __attribute__((deprecated(msg)))
@@ -164,11 +189,11 @@ namespace ALL_AI
 	};
 
 	// Request builder strategy
-	class IRequestBuilderStrategy : virtual public ThrowError{
+	class IRequestBuilderStrategy : virtual public ThrowError {
 	public:
 		virtual ~IRequestBuilderStrategy() = default;
 		DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
-		virtual nlohmann::json GetBuilder() = 0;
+			virtual nlohmann::json GetBuilder() = 0;
 		virtual nlohmann::json BuilderToJson() = 0;
 		virtual void ClearBuilder() = 0;
 		virtual nlohmann::json GetEmptyBuilder() = 0;
@@ -200,7 +225,7 @@ namespace ALL_AI
 			 ============================================================================
 			*/
 			DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
-			virtual nlohmann::json GetBuilder() override
+				virtual nlohmann::json GetBuilder() override
 			{
 				std::lock_guard<std::mutex> lock(this->m_mutex_request);
 				return this->m_request_json;
@@ -1091,6 +1116,7 @@ namespace ALL_AI
 			*/
 			virtual void Parse(const nlohmann::json& response) override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_response);
 				this->m_response_json = response;
 				return;
 			}
@@ -1106,6 +1132,7 @@ namespace ALL_AI
 			*/
 			virtual void Parse(const std::string& response) override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_response);
 				try
 				{
 					this->m_response_json = std::move(nlohmann::json::parse(response));
@@ -1128,6 +1155,7 @@ namespace ALL_AI
 			*/
 			virtual nlohmann::json GetData() override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_response);
 				return this->m_response_json;
 			}
 
@@ -1882,6 +1910,7 @@ namespace ALL_AI
 				const std::string& api_key,
 				const ALL_AI_ErrorThrow all_ai_error_throw) override
 			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
 				if (url.empty() || api_key.empty())
 				{
 					DoErrorThrow("CurlHttpTransport: url or api_key is empty");
@@ -1890,7 +1919,7 @@ namespace ALL_AI
 				this->m_url = url;
 				this->m_key = api_key;
 				this->m_error_throw_method = all_ai_error_throw;
-				
+
 				// Determine whether it has been initialized
 				// If it has been initialized, close the initialized libcurl
 				if (this->m_curl != nullptr)
@@ -2303,7 +2332,8 @@ namespace ALL_AI
 			*/
 			virtual void ClearResource() override
 			{
-				if(this->m_curl != nullptr)
+				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
+				if (this->m_curl != nullptr)
 				{
 					// Clean up libcurl
 					curl_easy_cleanup(this->m_curl);
@@ -2525,7 +2555,7 @@ namespace ALL_AI
 		};
 	}
 
-	class AI : public ThrowError{
+	class AI : public ThrowError {
 	public:
 
 		/*
@@ -2652,7 +2682,14 @@ namespace ALL_AI
 	   */
 		bool InitAI()
 		{
-			std::lock_guard<std::mutex> lock(this->m_mutex_ai_init);
+#if __ALL_AI_CXX_VERSION >= 17L
+			std::scoped_lock lock(this->m_mutex_ai_init, this->m_mutex_config);
+#elif (__ALL_AI_CXX_VERSION < 17L && __ALL_AI_CXX_VERSION >= 11L)
+			std::lock_guard<std::mutex> lock_config(this->m_mutex_config);
+			std::lock_guard<std::mutex> lock_init(this->m_mutex_ai_init);
+#else
+			return false;
+#endif
 
 			// If AI has already been initialized, return false to avoid repeated initialization
 			if (this->m_initialized == true ||
@@ -2665,20 +2702,16 @@ namespace ALL_AI
 			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				this->m_callback_function != nullptr)
 			{
-				// No extra lock is required here because InitAI does not run concurrently with SendRequest
-				// (this is guaranteed by the user or by the m_initialized flag), and Builder/Parser already have internal locks
+				// Builder/Parser already have internal locks
 				this->m_builder.SetThrowErrorCallbackFunction(this->m_callback_function);
 				this->m_parser.SetThrowErrorCallbackFunction(this->m_callback_function);
 			}
 
-			// Initialize the HTTP transport interface
+			// Initialize the HTTP transport interface (m_mutex_config is already held, no need to lock again)
+			if (this->m_transport)
 			{
-				std::lock_guard<std::mutex> lock(this->m_mutex_config);
-				if (this->m_transport)
-				{
-					this->m_initialized = this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw_method);
-					return this->m_initialized;
-				}
+				this->m_initialized = this->m_transport->Initialize(this->m_url, this->m_api_key, this->m_error_throw_method);
+				return this->m_initialized;
 			}
 			return false;
 		}
@@ -2698,8 +2731,14 @@ namespace ALL_AI
 			std::string api_key = "",
 			std::shared_ptr<IHttpTransport> transport = std::make_shared<HttpTransport::CurlHttpTransport>())
 		{
-			// Acquire the configuration lock and update the configuration
-			std::lock_guard<std::mutex> lock(this->m_mutex_config);
+#if __ALL_AI_CXX_VERSION >= 17L
+			std::scoped_lock lock(this->m_mutex_ai_init, this->m_mutex_config);
+#elif (__ALL_AI_CXX_VERSION < 17L && __ALL_AI_CXX_VERSION >= 11L)
+			std::lock_guard<std::mutex> lock_config(this->m_mutex_config);
+			std::lock_guard<std::mutex> lock_init(this->m_mutex_ai_init);
+#else
+			return false;
+#endif
 
 			// If a certain parameter is empty, return false to avoid incorrect configuration; if it is not empty, update the configuration
 			if (false == url.empty())
@@ -2710,7 +2749,7 @@ namespace ALL_AI
 			{
 				this->m_api_key = api_key;
 			}
-			if(nullptr != transport)
+			if (nullptr != transport)
 			{
 				this->m_transport = std::move(transport);
 			}
@@ -2747,8 +2786,7 @@ namespace ALL_AI
 			// SendRequest is thread-safe here because CurlHttpTransport is already protected by a lock
 			// Parse is also thread-safe here because JsonResponceParser is already protected by a lock
 			nlohmann::json result = transport_local->SendRequest(method, request_json);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -2853,8 +2891,7 @@ namespace ALL_AI
 			std::unordered_map<std::string, std::string> form_fields;
 			form_fields["purpose"] = purpose;
 			nlohmann::json result = transport_local->SendMultipartRequest(target_url, file_path, "file", form_fields);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -2960,8 +2997,7 @@ namespace ALL_AI
 
 			std::string str_result = SendFileRawRequest(HttpMethod::GET, target_url);
 			nlohmann::json result = ParseRawToJson(str_result);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -2991,8 +3027,7 @@ namespace ALL_AI
 
 			std::string str_result = SendFileRawRequest(HttpMethod::GET, target_url + "/" + file_id);
 			nlohmann::json result = ParseRawToJson(str_result);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -3052,8 +3087,7 @@ namespace ALL_AI
 
 			std::string str_result = SendFileRawRequest(HttpMethod::DELETE, target_url + "/" + file_id);
 			nlohmann::json result = ParseRawToJson(str_result);
-			this->m_parser.Parse(result);
-			return this->m_parser.GetData();
+			return result;
 		}
 
 		/*
@@ -3614,7 +3648,6 @@ namespace ALL_AI
 
 		return messages;
 	}
-
 }
 
 #define ALL_AI_TOOL_MESSAGE_ROLE_USER		(ALL_AI::JsonOperatorTools::Role::User)
