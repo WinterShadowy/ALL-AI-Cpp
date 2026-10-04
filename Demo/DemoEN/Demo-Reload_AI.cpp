@@ -42,9 +42,10 @@ int main()
 	ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_SYSTEM, "You are helpful assistant.");
 	ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_USER, "Introduce Github to me.");
 	ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
-	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
+	nlohmann::json response = ai.SendRequestFromBuilder_Post();
+	std::cout << response.dump(2);
 
-	std::cout << "content: " << ai.GetParser().GetValue<std::string>("choices", 0, "message", "content");
+	std::cout << "content: " << ALL_AI::JsonGet<std::string>(response, "choices", 0, "message", "content");
 
 	return 0;
 }

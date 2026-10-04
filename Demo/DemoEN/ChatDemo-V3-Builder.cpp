@@ -1,4 +1,4 @@
-#include "ALL-AI-V3-En.hpp"
+#include "ALL-AI-V3.hpp"
 #include <iostream>
 
 using namespace std;
@@ -18,8 +18,8 @@ void BuilderDemo_1(ALL_AI::AI& ai)
 void BuilderDemo_2(ALL_AI::AI& ai)
 {
 	std::cout << "\n\n === BuilderDemo_2 ===\n";
-	ai.GetBuilder().AppendToArray(nlohmann::json({ {"role", "system"}, {"content", "you are a helpful assistant."} }), "messages");
-	ai.GetBuilder().AppendToArray(nlohmann::json({ {"role", "user"}, {"content", "Introduce Github to me. Answer me in English"} }), "messages");
+	ai.GetBuilder().ArrayPushBack(nlohmann::json({ {"role", "system"}, {"content", "you are a helpful assistant."} }), "messages");
+	ai.GetBuilder().ArrayPushBack(nlohmann::json({ {"role", "user"}, {"content", "Introduce Github to me. Answer me in English"} }), "messages");
 }
 
 int main()
@@ -42,6 +42,7 @@ int main()
 		return 1;
 	}
 
+	// build request
 	ai.GetBuilder().SetValue("gpt-4o-mini", "model");
 	ai.GetBuilder().SetValue(false, "stream");
     // create an array
@@ -70,9 +71,10 @@ int main()
 	}
 	
     // print result
-	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
+	nlohmann::json response = ai.SendRequestFromBuilder_Post();
+	std::cout << response.dump(2);
 
     // print content
-	std::cout << "\n\n === conetent: ===\n" << ai.GetParser().GetValue<std::string>("choices", 0, "message", "content");
+	std::cout << "\n\n === content: ===\n" << ALL_AI::JsonGet<std::string>(response, "choices", 0, "message", "content");
 	return 0;
 }

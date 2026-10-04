@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(CURL REQUIRED)
 
-add_executable(all-ai main.cpp)
+add_executable(all-ai MainTest-V3.cpp)
 
 target_include_directories(all-ai PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

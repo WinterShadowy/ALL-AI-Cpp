@@ -1,4 +1,4 @@
-#include "ALL-AI-V3-En.hpp"
+#include "ALL-AI-V3.hpp"
 #include <iostream>
 
 using namespace std;
@@ -18,8 +18,8 @@ void BuilderDemo_1(ALL_AI::AI& ai)
 void BuilderDemo_2(ALL_AI::AI& ai)
 {
 	std::cout << "\n\n === BuilderDemo_2 ===\n";
-	ai.GetBuilder().AppendToArray(nlohmann::json({ {"role", "system"}, {"content", "you are a helpful assistant."} }), "messages");
-	ai.GetBuilder().AppendToArray(nlohmann::json({ {"role", "user"}, {"content", "Introduce Github to me. Answer me in English"} }), "messages");
+	ai.GetBuilder().ArrayPushBack(nlohmann::json({ {"role", "system"}, {"content", "you are a helpful assistant."} }), "messages");
+	ai.GetBuilder().ArrayPushBack(nlohmann::json({ {"role", "user"}, {"content", "Introduce Github to me. Answer me in English"} }), "messages");
 }
 
 int main()
@@ -46,7 +46,7 @@ int main()
 	ai.GetBuilder().SetValue("gpt-4o-mini", "model");
 	ai.GetBuilder().SetValue(false, "stream");
     // 创建一个数组
-    // 在操作某个数组前，请确定数组存在，或者是创建一个数组。比如这李创建了字段为“messages”的数组
+    // 在操作某个数组前，请确定数组存在，或者是创建一个数组。比如这里创建了字段为“messages”的数组
 	ai.GetBuilder().CreateArray("messages");
 	
     // 构建器扩展用法
@@ -70,8 +70,10 @@ int main()
 	}
 	
     // 打印结果
-	std::cout << ai.SendRequestFromBuilder_Post().dump(2);
+	nlohmann::json response = ai.SendRequestFromBuilder_Post();
+	std::cout << response.dump(2);
 
-	std::cout << "\n\n === conetent: ===\n" << ai.GetParser().GetValue<std::string>("choices", 0, "message", "content");
+    // 打印内容
+	std::cout << "\n\n === content: ===\n" << ALL_AI::JsonGet<std::string>(response, "choices", 0, "message", "content");
 	return 0;
 }

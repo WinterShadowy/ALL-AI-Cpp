@@ -1,129 +1,69 @@
 # V3 设计架构
 
-本页说明 ALL-AI-Cpp V3 的核心设计思路、模块分层，以及 SSE 流返回时建议替换的函数位置。
+本章节说明 ALL-AI-Cpp V3 的整体设计思路与模块分层，面向**开发者**与**项目维护者**。
+读完本章节可回答两个问题——"手上的需求该调用哪个接口？"以及"要修改的行为属于哪一层？"。
 
-## 0. 全景 ASCII 架构图
+## 设计原则：沉淀结构，不沉淀字段名
 
-下面这张图对应 V3 的主路径（构建请求 -> 发送 -> 解析 -> 读取）：
+库只拥有**不变的机制**——可靠的 curl 收发（JSON / multipart / 二进制流回调）与
+数据加工工具（base64、多模态 part 组装、安全取值）；把**易变的配置与语义**
+（端点 URL、表单字段名、响应字段名）完全还给用户：
 
-```text
-+-----------------------------------------------------------------------------------+
-|                                   Application Layer                               |
-|      你的业务代码 / Demo / CLI / GUI / Server                                    |
-|  (GetTools, GetBuilder, SendRequestFromBuilder_Post, GetParser)                  |
-+---------------------------------------------+-------------------------------------+
-                                              |
-                                              v
-+-----------------------------------------------------------------------------------+
-|                                   Facade Layer                                    |
-|                                       AI                                          |
-|      InitAI / ReloadAI / SendRequest / SendRequest_POST / SendRequest_GET         |
-+-------------------------------+------------------------------+---------------------+
-                                |                              |
-                                |                              |
-                                v                              v
-+-------------------------------+----------+      +-----------+---------------------+
-|         Request Strategy                 |      |        Response Strategy         |
-|          JsonRequestBuilder              |      |         JsonResponceParser       |
-|   SetValue / _setValue / GetBuilder      |      |   Parse / GetData / GetValue     |
-+-------------------------------+----------+      +-----------+---------------------+
-                                \                              /
-                                 \                            /
-                                  \                          /
-                                   v                        v
-                         +----------------------------------------+
-                         |            Transport Layer             |
-                         |            IHttpTransport              |
-                         |       (interface abstraction)          |
-                         +-------------------+--------------------+
-                                             |
-                                             v
-                         +----------------------------------------+
-                         |          CurlHttpTransport             |
-                         |  Initialize / SendRequest / callback   |
-                         |  WriteCallback / TryParseSseResponse   |
-                         +-------------------+--------------------+
-                                             |
-                                             v
-                         +----------------------------------------+
-                         |         External AI HTTP API           |
-                         |   JSON / SSE(text/event-stream)        |
-                         +----------------------------------------+
-```
+- 库内唯一的 URL 是聊天 URL（构造 / `SetURL` 注入），其余一切 URL 都是**调用参数**；
+- 库不存储、不推导、不映射任何业务端点——端点表是用户自己的资产；
+- 只有稳定结构（如 `/v1/files/{id}/content` 的 REST 资源路径）才沉淀为库代码（`ai.Files` 文件网关）。
 
-## 1. 架构分层
+设计架构拆分为两个子页面：
 
-V3 的整体链路可以理解为四层：
+* [核心架构 (Core Architecture)](/v3/design/core-architecture.md)
+  请求-响应主链路：应用层 / 门面层 / 策略层 / 传输层的四层划分，
+  JSON 构建与解析、错误处理策略、SSE 流式返回的处理链路。
+  发起对话、调整请求体、解析响应、替换 HTTP 库相关的需求见该页面。
 
-1. 应用层：你的业务代码，负责组装 prompt、处理返回。
-2. 门面层：`ALL_AI::AI`，统一暴露初始化、发送请求、读取解析结果等能力。
-3. 策略层：`JsonRequestBuilder`、`JsonResponceParser`、`JsonOperatorTools`，负责请求构建和响应解析。
-4. 传输层：`IHttpTransport` 抽象接口和 `CurlHttpTransport` 默认实现，负责 HTTP 通信。
+* [文件操作架构 (File Operation Architecture)](/v3/design/file-operation-architecture.md)
+  文件子系统：文件网关 `ai.Files`、文件类型识别、策略模式（文件转对话）、
+  多模态内容构建器（ContentPartBuilder）、机制层三大入口。
+  上传文件、文件对话、多模态消息、适配中转站端点相关的需求见该页面。
 
-## 2. 关键对象协作
-
-一次 POST 请求的大致流程如下：
-
-1. `AI::GetBuilder()` 构建请求 JSON。
-2. `AI::SendRequestFromBuilder_Post()` 触发发送。
-3. `AI::SendRequest(...)` 调用 `IHttpTransport::SendRequest(...)`。
-4. `CurlHttpTransport::SendRequest(...)` 使用 libcurl 发起请求，收集响应。
-5. 返回 JSON 给 `JsonResponceParser`，再由 `AI::GetParser()` 提供字段读取。
-
-补充说明：
-
-1. `AI` 是门面对象，尽量把复杂度封装在 transport 和 parser 层。
-2. `IHttpTransport` 是可替换点，后续可接入 Boost.Beast、CPR、WinHTTP 等。
-3. parser 层是数据契约稳定点，外部业务尽量只依赖 parser 输出结构。
-
-## 3. SSE 流返回支持现状
-
-当前 V3 已兼容以下行为：
-
-1. 当请求体中 `stream=true` 时，传输层会使用 `Accept: text/event-stream`。
-2. 若响应不是单个 JSON，而是 SSE 的 `data: ...` 事件流，会自动尝试解析。
-3. 解析后会保留 `sse_chunks`（所有流片段），并合并成可直接读取的 `choices[].message.content`。
-
-这意味着你可以继续使用同步接口，只是网络完成后再一次性拿到已合并结果。
-
-## 3.1 SSE 处理链路 ASCII 图
+## 一张图看懂两条链路
 
 ```text
-request_json(stream=true)
-    |
-    v
-AI::SendRequest_POST / SendRequestFromBuilder_Post
-    |
-    v
-CurlHttpTransport::SendRequest
-    |
-    +--> set header: Accept: text/event-stream
-    |
-    +--> curl_easy_perform (buffer append by WriteCallback)
-    |
-    +--> try parse whole JSON
-        |
-        +-- success --> normal JSON path
-        |
-        +-- fail --> TryParseSseResponse
-                   |
-                   +--> scan lines: data: {...}
-                   +--> parse chunk json list (sse_chunks)
-                   +--> merge delta/content -> choices[].message.content
-                   +--> return merged json
+                          +----------------------+
+                          |     用户业务代码      |
+                          +----------+-----------+
+                                     |
+                  +------------------+------------------+
+                  |                                     |
+                  v                                     v
+   +------------------------------+      +------------------------------+
+   |      对话链路（核心架构）       |      |     文件链路（文件操作架构）    |
+   |                              |      |                              |
+   |  GetTools   -> 组装消息       |      |  ai.Files 文件网关            |
+   |  GetBuilder -> 构建请求体      |      |   Upload / UploadBatch       |
+   |  SendRequestFromBuilder_*     |      |   ToMessages / List / Info   |
+   |     -> 发送（聊天URL）         |      |   Content / Delete           |
+   |  JsonGet    -> 一行取值       |      |  ContentPartBuilder           |
+   +--------------+---------------+      |  （URL 一律调用参数显式传入）   |
+                  |                      +--------------+---------------+
+                  |                                     |
+                  v                                     v
+   +-------------------------------------------------------------------+
+   |                     Transport Layer (IHttpTransport)              |
+   |   SendRequest (JSON/SSE)  /  SendMultipartRequest (multipart)     |
+   |   SendRequestRaw (原始GET/POST + 数据回调)                         |
+   +-------------------------------------------------------------------+
+                                     |
+                                     v
+   +-------------------------------------------------------------------+
+   |           External AI HTTP API (JSON / SSE / 二进制流)             |
+   +-------------------------------------------------------------------+
 ```
 
-## 4. SSE 相关函数
+两条链路**共享同一个传输层**，但各自有独立的策略层：
 
-在请求尝试解析时：
-```cpp
-try
-{
-	json_result = nlohmann::json::parse(str_Buffer);
-}
-```
-当处理出现错误时，会在catch语句中尝试解析SSE流，下方的函数是一个简单实现：
-```cpp
-TryParseSseResponse(const std::string& response, nlohmann::json& json_result)
-```
-此函数会尝试解析SSE流，并拼凑数据为一个``nlohmann::json``，如果您有其它需求，您可以重构/重载上述函数。
+- 对话链路的策略层是 `JsonRequestBuilder`（构建）与 `JsonGet` / `JsonResponseParser`（解析）；
+- 文件链路的策略层是 `IFileProcessStrategy` 家族 + `FileTypeDetector`
+  （决定文件怎么处理；请求发到哪里由调用方在 URL 参数中声明）。
+
+> 维护者提示：新增能力时先判断它属于哪条链路、哪一层。同一层内的改动不应跨层泄漏细节
+> （例如文件网关只负责拼 REST 资源路径，URL 主机部分永远来自调用参数）。

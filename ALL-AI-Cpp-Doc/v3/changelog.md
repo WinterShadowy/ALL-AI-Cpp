@@ -2,6 +2,41 @@
 
 用于记录 ALL-AI-Cpp V3 文档与代码的关键更新，便于追踪功能演进与兼容性变化。
 
+## 2026-10-03
+```txt
+Added/新增:
+1. 文档全面更新：API 参考（core/json-tools/transport/common-usage）、
+   示例 Demo、设计架构、站点适配指南全部对齐 v3.2 定稿接口
+2. MainTest-V3 十项集成测试全部真实联调通过（KIMI 官方站 + 硅基流动）
+
+Changed/修改:
+1. AudioDemo-V3（中英双版）注释补入实测结论：硅基流动网关接受 OpenAI 约定的
+   audio_url 音频 part，拒绝 DashScope 风格的 input_audio part
+  （400, code 20029 "Only text and image_url are supported"），且不要求 stream+modalities
+2. 旧 Demo（ChatDemo-V3 / Demo-Reload_AI / ChatDemo-V3-Builder / ArrayDemo-V3）
+   中的 GetParser().Parse/GetValue 两步取值迁移为 JsonGet 一行取值
+
+Fixed/修正:
+1. 修复 libcurl 句柄状态残留 bug：TTS 等请求在四参数 SendRequestRaw 中设置过
+   显式 CURLOPT_POSTFIELDSIZE 但未重置，导致后续请求的请求体被按旧长度截断
+  （服务器收到残缺 JSON 报 400）。表现为"先 TTS 后音频对话时后者必然失败"。
+   修复：全部 4 个请求函数的清理块统一重置 POSTFIELDSIZE = -1L，
+   SendRequest 的 POST 分支显式设置 POSTFIELDSIZE = 请求体长度
+2. 上述修复已实跑验证：TTS（写出 80383 字节 mp3）+ 音频理解对话连跑全部通过
+
+Deleted/删除:
+1. 彻底删除 v3.2.0 中标记弃用的接口（从未发布到仓库，直接移除而非保留一个版本）：
+   - DEPRECATED 跨平台宏
+   - ApiEndpoint 枚举
+   - AI::SetEndpointUrl / SetEndpointSuffix / GetEndpointUrl 三个空壳
+   - AI 类 8 个文件转发器（UploadFile×2 / UploadFiles / FilesToMessages /
+     GetFileList / GetFileInfo / GetFileContent / DeleteFile）-> ai.Files 文件网关
+   - AI::GetParser + m_parser 成员 -> 无状态自由函数 JsonGet
+   - 构建器按值取 json 的 GetBuilder() -> BuilderToJson()
+   保留：AI::GetBuilder()（返回构建器引用，高频非弃用）、
+   命名空间级自由函数 ALL_AI::UploadFile(ai, ...) 等（对 ai.Files 的一行转发）
+```
+
 ## 2026-07-10
 ```txt
 Added/新增:
@@ -15,7 +50,7 @@ Fixed/修正:
 
 Deleted/删除:
 无
-
+```
 
 ## 2026-06-18
 ```txt

@@ -1,165 +1,112 @@
 # ALL-AI-Cpp V3 示例 Demo
 
-本章节将通过 `Demo/` 目录下的示例代码，详细讲解如何使用 V3 版本的 API 进行开发。这包括聊天对话、图像生成以及视频生成的完整流程。
+本章节介绍 `Demo/` 目录下的示例代码。除特别说明外，每个示例都提供中英双版
+（`Demo/DemoCN/` 与 `Demo/DemoEN/`），全部使用 `JsonGet` 无状态取值与 v3.2 接口。
 
 > **注意**: 运行示例前，请确保您已拥有有效的 API Key 和对应的 API Endpoint URL。
+> 示例中的相对路径（如 `../TestFiles/TestAudio.mp3`）相对于程序的工作目录——
+> 命令行运行时请 `cd` 到 `Demo/DemoCN`（或 `DemoEN`）再执行；
+> Visual Studio 调试时工作目录默认为项目目录，请检查路径是否匹配。
 
-## 1. 聊天对话 (Chat Completion)
+## 示例清单
 
-文件: `Demo/ChatDemo-V3.cpp`
+| 文件 | 演示内容 | 关键接口 |
+| --- | --- | --- |
+| `MainTest-V3.cpp`（仅中文版） | **十项集成测试**：对话 / 模型列表 / 文件网关 / 文件转对话 / 视频识别 / STT / TTS / 音频理解 / 图片生成 / 视频生成 | 全部核心接口 |
+| `ChatDemo-V3.cpp` | 最基础的对话请求 | `GetBuilder` / `GetTools` / `SendRequestFromBuilder_Post` / `JsonGet` |
+| `ChatDemo-V3-Builder.cpp` | 构建器的多种用法对照 | `JsonRequestBuilder` |
+| `ChatDemo-V3-Stream.cpp` | 流式（SSE）对话 | `stream=true`，传输层自动合并 |
+| `ChatDemo-V3-Thread.cpp` | 多线程并发请求 | 线程安全（局部构建模式） |
+| `Demo-Reload_AI.cpp` | 运行中切换 URL 配置 | `ReloadAI` |
+| `ModelListsDemo-V3.cpp` | 获取模型列表 | `SendRequestRaw`(GET) |
+| `FileDemo-V3.cpp` | 文件上传 / 内容抽取 / 列表 / 删除 / 文件对话 | `ai.Files` 文件网关 |
+| `AudioDemo-V3.cpp` | 语音转文本 + 文本转语音 + 音频理解对话 | `SendMultipartRequest` / `SetDataCallback` / `ContentPartBuilder` |
+| `ImageDemo-V3.cpp` | 文生图 | `SendRequestRaw`(POST) |
+| `VideoDemo-V3.cpp` | 视频生成（任务创建 + 轮询） | `SendRequestRaw`(POST/GET) |
+| `ArrayDemo-V3.cpp` | 构建器数组操作（增删查） | `JsonRequestBuilder` 数组 API |
 
-此示例展示了最基础的对话请求构建流程：
-1. **初始化**: 设置 `IHttpTransport`、URL 和 Key。
-2. **构建参数**: 设置模型 (`model`)、流式开关 (`stream`)。
-3. **添加消息**: 使用 `JsonOperatorTools` 便捷地添加 System 和 User 消息。
-4. **发送请求**: 使用 POST 方法发送并在控制台输出结果。
+测试资源文件位于 `Demo/TestFiles/`（小说开头文本、galgame 角色图片、中文绕口令音频；
+`TestVideo.mp4` 为空占位文件，运行视频相关示例前须替换为真实视频文件）。
 
-### 示例代码
+## 1. 集成测试：MainTest-V3.cpp
 
-```cpp
-#include "ALL-AI-V3.hpp"
-#include <iostream>
+十项测试覆盖库的全部核心能力，按站点分组（KIMI 官方站 / 硅基流动 / 视频生成站点），
+未配置对应站点的 Key 时自动 SKIP，有失败项时返回非零退出码（可接入 CI）：
 
-// 请替换为您实际的 API URL 和 Key
-std::string url = "https://api.openai.com/v1/chat/completions";
-std::string api_key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
-
-int main()
-{
-    // 1. 初始化 AI 对象
-    // 使用默认的 CurlHttpTransport，并设置不抛出异常 (错误信息可能通过 std::cerr 或返回值体现)
-    ALL_AI::AI ai(std::make_shared<ALL_AI::HttpTransport::CurlHttpTransport>(),
-        url,
-        api_key,
-        ALL_AI::ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW);
-
-    if (!ai.InitAI()) {
-        std::cerr << "AI initialization failed." << std::endl;
-        return 1;
-    }
-    std::cout << "AI initialized successfully." << std::endl;
-
-    // 2. 设置请求参数
-    ai.GetBuilder().SetValue("gpt-3.5-turbo", "model");
-    ai.GetBuilder().SetValue(false, "stream"); // 关闭流式输出
-
-    // 3. 构建消息列表
-    // 使用 Tools 辅助类添加消息，简化 JSON 结构构造
-    ai.GetTools().PushBackArray(ALL_AI::JsonOperatorTools::Role::System, "You are a helpful assistant.");
-    ai.GetTools().PushBackArray(ALL_AI::JsonOperatorTools::Role::User, "Introduce Github to me");
-    
-    // 将构建好的消息数组设置到请求体的 "messages" 字段
-    ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
-
-    // 4. 发送请求
-    std::cout << "Sending request..." << std::endl;
-    nlohmann::json response = ai.SendRequestFromBuilder_Post();
-
-    // 5. 输出完整响应
-    std::cout << "Response:\n" << response.dump(2) << std::endl;
-
-    // 6. 提取回复内容
-    // 安全地从深层 JSON 结构中获取 content 字段
-    std::string content = ai.GetParser().GetValue<std::string>("choices", 0, "message", "content");
-    std::cout << "--------------------------------------------------" << std::endl;
-    std::cout << "Assistant Content:\n" << content << std::endl;
-
-    return 0;
-}
+```text
+[1/10]  基础对话（构建器 + 工具类 + JsonGet）
+[2/10]  模型列表（SendRequestRaw · GET）
+[3/10]  文件网关（上传 / 内容 / 列表 / 删除）
+[4/10]  多类型文件转对话（Files.ToMessages）
+[5/10]  视频识别（上传视频 + AddVideoFileId 对话）
+[6/10]  语音转文本（SendMultipartRequest）
+[7/10]  文本转语音（SetDataCallback 二进制流）
+[8/10]  音频理解对话（ContentPartBuilder · audio_url）
+[9/10]  图片生成（SendRequestRaw · images/generations）
+[10/10] 视频生成（任务创建 + 轮询，最长300秒）
 ```
 
----
+## 2. 聊天对话：ChatDemo-V3.cpp
 
-## 2. 视频生成 (Video Generation)
-
-文件: `Demo/VideoDemo-V3.cpp`
-
-此示例展示了一个更复杂的异步任务流程：
-1. **提交任务**: 发送 POST 请求启动视频生成任务，服务器返回 `task_id`。
-2. **状态轮询**: 修改 API URL 为查询接口 (通常是 `base_url/task_id`)。
-3. **循环检查**: 定时发送 GET 请求，直到任务完成或超时。
-
-这里演示了 `ReloadAI` 方法的用法，它允许在不重建对象的情况下更新 URL。
-
-### 示例代码
+最基础的对话流程：初始化 → 构建参数 → 组装消息 → 发送 → `JsonGet` 取值。
 
 ```cpp
-#include "ALL-AI-V3.hpp"
-#include <iostream>
-#include <thread>
-#include <chrono>
+ALL_AI::AI ai(std::make_shared<ALL_AI::HttpTransport::CurlHttpTransport>(),
+	url, api_key, ALL_AI::ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW);
+if (!ai.InitAI()) { return 1; }
 
-// 视频生成 API URL (示例)
-std::string base_url = "https://api.example.com/v1/video/generations";
-std::string api_key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+ai.GetBuilder().SetValue("gpt-3.5-turbo", "model");
+ai.GetBuilder().SetValue(false, "stream");
+ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_SYSTEM, "You are helpful assistant.");
+ai.GetTools().PushBackArray(ALL_AI_TOOL_MESSAGE_ROLE_USER, "Introduce Github to me");
+ai.GetBuilder().SetValue(ai.GetTools().GetMessagesArray(), "messages");
 
-int main()
-{
-    // 1. 初始化
-    ALL_AI::AI ai(std::make_shared<ALL_AI::HttpTransport::CurlHttpTransport>(),
-        base_url, 
-        api_key);
-
-    if (!ai.InitAI()) return 1;
-
-    // 2. 提交生成任务
-    ai.GetBuilder().SetValue("veo3.1-fast", "model");
-    ai.GetBuilder().SetValue("Helicopter takes off.", "prompt");
-
-    std::cout << "Submitting video task..." << std::endl;
-    nlohmann::json submit_resp = ai.SendRequestFromBuilder_Post();
-    std::cout << "Task Submitted: " << submit_resp.dump(2) << std::endl;
-
-    // 假设返回结构中包含 task_id
-    if (!submit_resp.contains("task_id")) {
-        std::cerr << "Error: No task_id returned." << std::endl;
-        return 1;
-    }
-    std::string task_id = submit_resp["task_id"].get<std::string>();
-
-    // 3. 切换 URL 以进行结果查询
-    // 拼接新的 URL: base_url + "/" + task_id
-    std::string query_url = base_url + "/" + task_id;
-    
-    // 使用 ReloadAI 更新 URL，保持 Key 和 Transport 不变
-    // 注意：ReloadAI 的第三个参数如果也是默认值，可能会重置 Transport，需根据实际情况传参或仅修改 URL
-    // 这里演示完整重新加载配置
-    if (ai.ReloadAI(query_url, api_key)) {
-        std::cout << "AI reloaded for polling: " << query_url << std::endl;
-    }
-
-    // 4. 轮询检查状态
-    for (int i = 0; i < 60; ++i) // 尝试 60 次
-    {
-        // 发送 GET 请求查询状态 (Get 请求通常不需要 body，Builder 中的内容会被忽略或清空依赖具体实现，此处建议手动清空或新建请求)
-        // SendRequestFromBuilder_Get 会发送一个 GET 请求
-        nlohmann::json status_resp = ai.SendRequestFromBuilder_Get();
-        
-        std::cout << "[Poll " << i << "] Status: " << status_resp.dump() << std::endl;
-        
-        // 检查任务状态 (假设字段为 "status")
-        std::string status = ai.GetParser().GetValue<std::string>("status");
-        if (status == "succeeded") {
-            std::cout << "Video generation succeeded!" << std::endl;
-            // 获取视频链接...
-            break;
-        } else if (status == "failed") {
-            std::cerr << "Video generation failed." << std::endl;
-            break;
-        }
-
-        // 等待 2.5 秒再次查询
-        std::this_thread::sleep_for(std::chrono::milliseconds(2500));
-    }
-
-    return 0;
-}
+nlohmann::json response = ai.SendRequestFromBuilder_Post();
+std::string content = ALL_AI::JsonGet<std::string>(response, "choices", 0, "message", "content");
 ```
 
-## 其他示例
+## 3. 文件网关：FileDemo-V3.cpp
 
-*   **ImageDemo-V3.cpp**: 演示了文生图的请求构建，主要涉及 `prompt`, `size`, `n` 等参数的设置。
-*   **ModelListsDemo-V3.cpp**: 演示了如何调用 GET 接口获取模型列表。
+文件全生命周期：上传 → 抽取内容 → 列表 → 删除，以及将文件内容注入对话。
+
+```cpp
+// 上传（KIMI 文件接口，purpose 为 file-extract）
+nlohmann::json up = ai.Files.Upload("../TestFiles/TestDoc.txt", "file-extract", files_url);
+std::string file_id = ALL_AI::JsonGet<std::string>(up, "id");
+
+// 抽取文本（返回原始字符串）
+std::string content = ai.Files.Content(file_id, files_url);
+
+// 清理
+ai.Files.Delete(file_id, files_url);
+```
+
+## 4. 语音三件套：AudioDemo-V3.cpp
+
+同一示例演示三种请求形状完全不同的语音接口，体现"沉淀结构，不沉淀字段名"的设计原则：
+
+```cpp
+// STT：multipart 表单进，json 出
+nlohmann::json stt = ai.SendMultipartRequest(stt_url, audio_path, "file",
+	{ {"model", stt_model} });
+
+// TTS：json 进，二进制音频流出（数据回调逐块写文件）
+ai.SetDataCallback([&out](const char* data, size_t size) -> size_t {
+	out.write(data, static_cast<std::streamsize>(size)); return size; });
+ai.SendRequestRaw(ALL_AI::HttpMethod::POST, tts_url, tts_body);
+ai.ClearDataCallback();
+
+// 音频理解：audio_url 多模态对话（ContentPartBuilder 链式构建）
+nlohmann::json user_message = ALL_AI::FileOperator::ContentPartBuilder()
+	.AddAudioBase64(audio_path)
+	.AddText(u8"这段音频里说了什么？")
+	.BuildUserMessage();
+```
+
+## 5. 视频生成：VideoDemo-V3.cpp
+
+任务式接口：POST 创建任务拿 `task_id`，GET 轮询直到完成（最长等待 300 秒）。
+演示了机制层 `SendRequestRaw` 如何适配非对话端点，URL 与字段名全部按站点文档显式给出。
 
 ## 编译运行
 
@@ -186,4 +133,10 @@ mkdir build && cd build
 cmake ..
 
 make
+```
+
+### Windows (g++ / MSYS2 MinGW64)
+
+```bash
+g++ -std=c++17 -I include Demo/DemoCN/MainTest-V3.cpp -o MainTest.exe -lcurl
 ```

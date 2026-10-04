@@ -10,21 +10,31 @@
 													 |_|   |_|
 
 *
-*   Thank you for using this library.
-*	！！！Translation from KimiAI！！！
+*	I'm glad you're using it
+*
+* ====================================================================================================
+*
 * ====================================================================================================
 *
 *   Developer's notes:
 *   1. The developer is not an AI specialist, and my abilities are limited. Thank you for your understanding.
 *   2. The developer is currently seeking a job (major: Computer Science and Technology). If you would like to offer an opportunity, please contact me via the email below.
+*		2.5 Fortunately, the developer has found a job.
 *   3. Open-source license: MIT
 *
-*   Online documentation: https://doc.cpluscottage.top/web/#/642380673
-*   Personal blog: https://xunlizhili.com
+*	Online documentation:
+*		https://doc.cpluscottage.top/web/#/642380673
+*		https://ai-cpp-docsify.cpluscottage.top/ (Discontinued)
+*	Developer's blog: https://blog.wang-sz.cn
 *   Feedback / updates / contact email: about@wang-sz.cn
 *
 *   If this library helps you, please consider giving it a star. Your support is my greatest motivation!
 *
+* ====================================================================================================
+*
+* ！！！Translation from KimiAI！！！
+*
+* ====================================================================================================
 */
 
 
@@ -54,25 +64,50 @@
 #include "nlohmann/json.hpp"
 
 
-#if ((defined(_WIN32) || defined(_WIN64)) && defined(_MSC_VER))		// Windows
-	#define WIN_MSVC_VER 0L
-	#include <windows.h>
-	#include <strsafe.h>
-	// The DELETE macro defined in windows.h conflicts with the HttpMethod::DELETE enumerator, so undefine it here
-	// Note: if user code includes windows.h again AFTER this header, #undef DELETE must be applied once more
-	#if (defined(DELETE))
-		#undef DELETE
-	#endif
-#elif __linux__		// linux
-#define LINUX_VER 1L
+#if (defined(_WIN32) || defined(_WIN64))    // Windows
+#ifndef __ALL_AI_SYSTEM_MARKER
+#define __ALL_AI_SYSTEM_MARKER 0x80L	// bin: 1000 0000
+#endif
+#elif (defined(__linux__) || defined(__linux))		// Linux
+#ifndef __ALL_AI_SYSTEM_MARKER
+#define __ALL_AI_SYSTEM_MARKER 0x40L	// bin: 0100 0000
+#endif
+#else
+#error "Unsupported operating system. This library only supports Windows and Linux."
+#endif
+
+// 操作系统：Windows
+// Operating system: Windows
+#if __ALL_AI_SYSTEM_MARKER >= 0x80L
+#include <windows.h>
+#include <strsafe.h>
+
+// The DELETE macro defined in windows.h conflicts with the HttpMethod::DELETE enumeration value, so the definition is cancelled here
+// Note: If the user's code includes windows.h after this header file, they need to manually #undef DELETE again
+#if (defined(DELETE))
+#undef DELETE
+#endif
+
+// Win32API: DeleteFile conflicts with the function for deleting files specified on the API website
+// To use Win32 API to delete files, please include windows.h after this header file
+#if (defined(DeleteFile))
+#undef DeleteFile
+#endif
+
+#elif (__ALL_AI_SYSTEM_MARKER >= 0x40L && __ALL_AI_SYSTEM_MARKER < 0x80L)
 #include <stdlib.h>
 #include <string.h>
 #endif
 
-#if defined(WIN_MSVC_VER)
+// Determine the compiler
+// MSVC
+#if defined(_MSC_VER)
 #define __ALL_AI_CXX_STANDARD _MSVC_LANG
-#elif defined(LINUX_VER)
-# define __ALL_AI_CXX_STANDARD __cplusplus
+// g++
+#elif defined(__GNUC__)
+#define __ALL_AI_CXX_STANDARD __cplusplus
+#else
+#error "Unsupported compiler. This library only supports MSVC and g++."
 #endif
 
 #if __ALL_AI_CXX_STANDARD >= 202002L
@@ -97,17 +132,6 @@
 #define __ALL_AI_CXX_VERSION 11L
 #endif
 
-// Cross-platform deprecation macro
-#if __ALL_AI_CXX_STANDARD >= 201402L	// C++14 and above: use standard attribute
-#define DEPRECATED(msg) [[deprecated(msg)]]
-#elif defined(__GNUC__) || defined(__clang__)	// GCC/Clang extension
-#define DEPRECATED(msg) __attribute__((deprecated(msg)))
-#elif defined(_MSC_VER) // MSVC extension
-#define DEPRECATED(msg) __declspec(deprecated(msg))
-#else	// Unknown compiler, ignore
-#define DEPRECATED(msg)
-#endif
-
 namespace ALL_AI
 {
 	// HTTP method enumeration. Currently only libcurl-based sessions are supported.
@@ -117,11 +141,17 @@ namespace ALL_AI
 		DELETE
 	};
 
+	// Data callback: invoked chunk by chunk when response data arrives (for binary responses
+	// such as audio streams, SSE, or large downloads). The return value follows the libcurl
+	// write callback convention: return the number of bytes consumed; returning a value
+	// different from the given size aborts the request
+	using DataCallback = std::function<size_t(const char* data, size_t size)>;
+
 	// Error reporting modes
 	enum class ALL_AI_ErrorThrow {
-		ALL_AI_PRINT_ERROR,			// Report errors by printing messages
-		ALL_AI_CALLBACK_FUNCTION,	// Report errors through a callback function
-		ALL_AI_EXCEPTION_THROWING,	// Report errors by throwing exceptions
+		ALL_AI_PRINT_ERROR,		// Report errors by printing messages
+		ALL_AI_CALLBACK_FUNCTION,		// Report errors through a callback function
+		ALL_AI_EXCEPTION_THROWING,		// Report errors by throwing exceptions
 		ALL_AI_NO_ERROR_THROW		// Do not report errors
 	};
 
@@ -129,6 +159,7 @@ namespace ALL_AI
 	public:
 		ThrowError() {};
 		~ThrowError() {};
+
 
 		/*
 		============================================================================
@@ -139,7 +170,13 @@ namespace ALL_AI
 		Return: No return value
 		============================================================================
 		*/
-		void SetThrowErrorCallbackFunction(std::function<void(const std::string_view& message)> callback_function)
+		void SetThrowErrorCallbackFunction(
+#if __ALL_AI_CXX_VERSION >= 17L
+			std::function<void(const std::string_view& message)> callback_function
+#elif __ALL_AI_CXX_VERSION >= 14L
+			std::function<void(const std::string& message)> callback_function
+#endif
+		)
 		{
 			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				callback_function != nullptr)
@@ -148,7 +185,6 @@ namespace ALL_AI
 			}
 			return;
 		}
-
 		/*
 		============================================================================
 		Function: DoErrorThrow
@@ -158,7 +194,13 @@ namespace ALL_AI
 		Return: No return value
 		============================================================================
 		*/
-		void DoErrorThrow(std::string_view message)
+		void DoErrorThrow(
+#if __ALL_AI_CXX_VERSION >= 17L
+			std::string_view message
+#elif __ALL_AI_CXX_VERSION >= 14L
+			std::string message
+#endif
+		)
 		{
 			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_EXCEPTION_THROWING)
 			{
@@ -185,15 +227,18 @@ namespace ALL_AI
 
 	protected:
 		ALL_AI_ErrorThrow m_error_throw_method = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW;
-		std::function<void(const std::string_view& message)>	m_callback_function;
+#if __ALL_AI_CXX_VERSION >= 17L
+		std::function<void(const std::string_view& message)> m_callback_function;
+#elif __ALL_AI_CXX_VERSION >= 14L
+		std::function<void(const std::string& message)> m_callback_function;
+#endif
 	};
 
 	// Request builder strategy
 	class IRequestBuilderStrategy : virtual public ThrowError {
 	public:
 		virtual ~IRequestBuilderStrategy() = default;
-		DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
-			virtual nlohmann::json GetBuilder() = 0;
+
 		virtual nlohmann::json BuilderToJson() = 0;
 		virtual void ClearBuilder() = 0;
 		virtual nlohmann::json GetEmptyBuilder() = 0;
@@ -215,21 +260,9 @@ namespace ALL_AI
 		class JsonRequestBuilder : public IRequestBuilderStrategy {
 		public:
 
-			/*
-			 ============================================================================
-			 Function: GetBuilder
-			 Description: Returns the JSON builder object
-			 Parameters:
-				 - None: No parameters
-			 Return: Returns the JSON object
-			 ============================================================================
-			*/
-			DEPRECATED("GetBuilder is deprecated, please use BuilderToJson instead")
-				virtual nlohmann::json GetBuilder() override
-			{
-				std::lock_guard<std::mutex> lock(this->m_mutex_request);
-				return this->m_request_json;
-			}
+			JsonRequestBuilder() {}
+
+			virtual ~JsonRequestBuilder() override = default;
 
 			/*
 			 ============================================================================
@@ -313,15 +346,27 @@ namespace ALL_AI
 
 			// Get the last element of the array (fail if the path does not exist, or if the input is not an array, or if the array is empty)
 			template <typename _T_Value, typename... Args>
+#if __ALL_AI_CXX_VERSION >= 17L
 			std::optional<_T_Value> GetArrayBack(Args... keys);
+#elif __ALL_AI_CXX_VERSION >= 14L
+			_T_Value GetArrayBack(Args... keys);
+#endif
 
 			// Get the first element of the array (fail if the path does not exist, or if the input is not an array, or if the array is empty)
 			template <typename _T_Value, typename... Args>
+#if __ALL_AI_CXX_VERSION >= 17L
 			std::optional<_T_Value> GetArrayFront(Args... keys);
+#elif __ALL_AI_CXX_VERSION >= 14L
+			_T_Value GetArrayFront(Args... keys);
+#endif
 
 			// Retrieve the element at the specified index of the array (fail if the path does not exist, or if the input is not an array, or if the array is empty)
 			template <typename _T_Value, typename... Args>
+#if __ALL_AI_CXX_VERSION >= 17L
 			std::optional<_T_Value> GetArrayValue(size_t index, Args... keys);
+#elif __ALL_AI_CXX_VERSION >= 14L
+			_T_Value GetArrayValue(size_t index, Args... keys);
+#endif
 
 			// Creates an empty array
 			template <typename... Args>
@@ -335,11 +380,81 @@ namespace ALL_AI
 			template <typename... Args>
 			bool ClearArray(Args... keys);
 
-		private:
-
 			// Path element type: can be a string key or an array index
+#if __ALL_AI_CXX_VERSION >= 17L
 			using PathKey = std::variant<std::string, size_t, int>;
+#elif __ALL_AI_CXX_VERSION >= 14L
+			struct PathKey {
+				enum class Type {
+					String,
+					SizeT,
+					Int
+				} type;
 
+				std::string str_val;
+				size_t size_val;
+				int int_val;
+
+				// Default constructor (required for certain operations of vector)
+				PathKey() :
+					type(Type::Int),
+					str_val(),
+					size_val(0),
+					int_val(0)
+				{
+				}
+
+				// Conversion constructor, replacing the implicit construction of std::variant
+				PathKey(const std::string& s) :
+					type(Type::String),
+					str_val(s),
+					size_val(0),
+					int_val(0)
+				{
+				}
+
+				PathKey(const char* s) :
+					type(Type::String),
+					str_val(s),
+					size_val(0),
+					int_val(0)
+				{
+				}
+
+				PathKey(size_t v) :
+					type(Type::SizeT),
+					str_val(),
+					size_val(v),
+					int_val(0)
+				{
+				}
+
+				PathKey(int v) :
+					type(Type::Int),
+					str_val(),
+					size_val(0),
+					int_val(v)
+				{
+				}
+
+				static PathKey from_string(const std::string& s)
+				{
+					return PathKey(s);
+				}
+
+				static PathKey from_size_t(size_t v)
+				{
+					return PathKey(v);
+				}
+
+				static PathKey from_int(int v)
+				{
+					return PathKey(v);
+				}
+			};
+#endif
+
+		private:
 			// Terminates recursion
 			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path);
 
@@ -355,7 +470,7 @@ namespace ALL_AI
 
 			// Variadic parameter expansion
 			template <typename T, typename... Rest>
-			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest);
+			void BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... _rest);
 
 			// Converts variadic parameters to a path array
 			template <typename... Args>
@@ -366,14 +481,6 @@ namespace ALL_AI
 
 			// Navigates to a node by path (read-only, no creation)
 			nlohmann::json* Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path);
-
-			// Sets a JSON field value: recursion termination layer
-			template <typename T>
-			bool _setValue(nlohmann::json& _json, T&& _val, const std::string& _key);
-
-			// Sets a JSON field value: recursion intermediate layer
-			template <typename T, typename... Args>
-			bool _setValue(nlohmann::json& _json, T&& val, const std::string& _first, Args&&... _rest);
 
 		private:
 			nlohmann::json m_request_json;
@@ -414,11 +521,12 @@ namespace ALL_AI
 			// Sets value, std::holds_alternative checks variable type, returns false if not string or size_t
 			// true - string, key
 			// false - size_t, index
+#if __ALL_AI_CXX_VERSION >= 17L
 			if (std::holds_alternative<std::string>(lastKey))
 			{
 				(*parent)[std::get<std::string>(lastKey)] = value;
 			}
-			else
+			else if (std::holds_alternative<size_t>(lastKey))
 			{
 				size_t index = std::get<size_t>(lastKey);
 				if (!parent->is_array() && !parent->is_null())
@@ -435,6 +543,41 @@ namespace ALL_AI
 				}
 				(*parent)[index] = value;
 			}
+			else
+			{
+				return false;
+			}
+#elif __ALL_AI_CXX_VERSION >= 14L
+			switch (lastKey.type)
+			{
+			case PathKey::Type::String:
+				(*parent)[lastKey.str_val] = value;
+				break;
+
+			case PathKey::Type::SizeT:
+			{
+				size_t index = lastKey.size_val;
+				if (!parent->is_array() && !parent->is_null())
+				{
+					return false;
+				}
+				if (parent->is_null())
+				{
+					*parent = nlohmann::json::array();
+				}
+				while (parent->size() <= index)
+				{
+					parent->push_back(nullptr);
+				}
+				(*parent)[index] = value;
+				break;
+			}
+
+			default:
+				// For Int type or other unknown types, return false to maintain consistency with the original logic
+				return false;
+			}
+#endif
 			return true;
 		}
 
@@ -617,16 +760,16 @@ namespace ALL_AI
 		}
 
 		/*
-		 ============================================================================
-		 Function: SetArrayValue
-		 Description: Sets a value at a specific JSON array index
-		 Parameters:
-			 - _T_Value: The value to be set
-			 - size_t: The index
-			 - Args...: Variadic parameters, must be strings, used as JSON field indices
-		 Return: Returns true on success, false otherwise
-		 ============================================================================
-		*/
+		============================================================================
+		Function: SetArrayValue
+		Description: Sets a value at a specific JSON array index
+		Parameters:
+			- _T_Value: The value to be set
+			- size_t: The index
+			- Args...: Variadic parameters, must be strings, used as JSON field indices
+		Return: Returns true on success, false otherwise
+		============================================================================
+	   */
 		template <typename _T_Value, typename... Args>
 		inline bool JsonRequestBuilder::SetArrayValue(_T_Value value, size_t index, Args... keys)
 		{
@@ -711,6 +854,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
+#if __ALL_AI_CXX_VERSION >= 17L
 		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayBack(Args ...keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
@@ -725,6 +869,23 @@ namespace ALL_AI
 
 			return node->back().get<_T_Value>();
 		}
+#elif __ALL_AI_CXX_VERSION >= 14L
+		inline _T_Value JsonRequestBuilder::GetArrayBack(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return _T_Value();
+			}
+
+			return node->back().get<_T_Value>();
+		}
+#endif
+
 
 		/*
 		 ============================================================================
@@ -736,6 +897,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
+#if __ALL_AI_CXX_VERSION >= 17L
 		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayFront(Args ...keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
@@ -748,6 +910,21 @@ namespace ALL_AI
 			}
 			return node->front().get<_T_Value>();
 		}
+#elif __ALL_AI_CXX_VERSION >= 14L
+		inline _T_Value JsonRequestBuilder::GetArrayFront(Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+			if (node == nullptr || !node->is_array() || node->empty())
+			{
+				return _T_Value();
+			}
+			return node->front().get<_T_Value>();
+		}
+#endif
+
 
 		/*
 		 ============================================================================
@@ -760,6 +937,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template<typename _T_Value, typename ...Args>
+#if __ALL_AI_CXX_VERSION >= 17L
 		inline std::optional<_T_Value> JsonRequestBuilder::GetArrayValue(size_t index, Args ...keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_request);
@@ -772,6 +950,20 @@ namespace ALL_AI
 			}
 			return node->at(index).get<_T_Value>();
 		}
+#elif __ALL_AI_CXX_VERSION >= 14L
+		inline _T_Value JsonRequestBuilder::GetArrayValue(size_t index, Args ...keys)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_request);
+
+			std::vector<JsonRequestBuilder::PathKey> path = BuildPath(keys...);
+			nlohmann::json* node = Navigate(m_request_json, path);
+			if (node == nullptr || !node->is_array() || index >= node->size())
+			{
+				return _T_Value();
+			}
+			return node->at(index).get<_T_Value>();
+		}
+#endif
 
 		/*
 		 ============================================================================
@@ -885,6 +1077,7 @@ namespace ALL_AI
 		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const std::string& _key)
 		{
 			_path.emplace_back(_key);
+			return;
 		}
 
 		/*
@@ -900,6 +1093,7 @@ namespace ALL_AI
 		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, const char* _key)
 		{
 			_path.emplace_back(std::string(_key));
+			return;
 		}
 
 		/*
@@ -948,10 +1142,10 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename T, typename... Rest>
-		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... rest)
+		inline void JsonRequestBuilder::BuildPathImpl(std::vector<JsonRequestBuilder::PathKey>& _path, T&& _first, Rest&&... _rest)
 		{
 			BuildPathImpl(_path, std::forward<T>(_first));
-			BuildPathImpl(_path, std::forward<Rest>(rest)...);
+			BuildPathImpl(_path, std::forward<Rest>(_rest)...);
 		}
 
 		/*
@@ -986,14 +1180,25 @@ namespace ALL_AI
 		{
 			nlohmann::json* current = &_root;
 
+#if __ALL_AI_CXX_VERSION >= 17L
 			for (const PathKey& key : _path)
 			{
 				std::visit([&](auto&& k) {
-					using T = std::decay_t<decltype(k)>;
+					using _Key_T = std::decay_t<decltype(k)>;
 
-					if constexpr (std::is_same_v<T, std::string>)
+					if constexpr (std::is_same_v<_Key_T, std::string>)
 					{
-						// Object key access
+						// Current node must be an object; null can be converted to an object when creation is allowed
+						if (!current->is_object())
+						{
+							if (!_createMissing || !current->is_null())
+							{
+								current = nullptr;
+								return;
+							}
+							*current = nlohmann::json::object();
+						}
+
 						if (!current->contains(k))
 						{
 							if (!_createMissing)
@@ -1001,43 +1206,49 @@ namespace ALL_AI
 								current = nullptr;
 								return;
 							}
-							(*current)[k] = nlohmann::json::object();
+							// Fill in null rather than object, so a later index key has a chance to turn it into an array
+							(*current)[k] = nullptr;
 						}
 						current = &(*current)[k];
 					}
-					else if constexpr (std::is_same_v<T, size_t>)
+					else if constexpr (std::is_same_v<_Key_T, size_t> || std::is_same_v<_Key_T, int>)
 					{
-						// Array index access
+						// For int indexes, check non-negativity first to avoid implicit conversion to a huge size_t
+						if constexpr (std::is_same_v<_Key_T, int>)
+						{
+							if (k < 0)
+							{
+								current = nullptr;
+								return;
+							}
+						}
+						const size_t idx = static_cast<size_t>(k);
+
+						// Current node must be an array; null can be converted to an array when creation is allowed
 						if (!current->is_array())
 						{
 							if (!_createMissing || !current->is_null())
 							{
-								// If not null and not array, and creation not allowed, fail
-								if (!current->is_null())
-								{
-									current = nullptr;
-									return;
-								}
+								current = nullptr;
+								return;
 							}
-							// Converts null to array
 							*current = nlohmann::json::array();
 						}
 
-						// Ensures array is long enough
-						if (k >= current->size())
+						// Ensure the array is long enough, padding with null when it falls short
+						if (idx >= current->size())
 						{
 							if (!_createMissing)
 							{
 								current = nullptr;
 								return;
 							}
-							// Expands array, filling gaps with null
-							while (current->size() <= k)
+							while (current->size() <= idx)
 							{
 								current->push_back(nullptr);
 							}
 						}
-						current = &(*current)[k];
+						current = &(*current)[idx];
 					}
 					}, key);
 
@@ -1047,12 +1258,85 @@ namespace ALL_AI
 				}
 			}
 
+#elif __ALL_AI_CXX_VERSION >= 14L
+			for (const PathKey& key : _path)
+			{
+				switch (key.type)
+				{
+				case PathKey::Type::String:
+				{
+					const std::string& k = key.str_val;
+
+					// Current node must be an object; null can be converted to an object when creation is allowed
+					if (!current->is_object())
+					{
+						if (!_createMissing || !current->is_null())
+						{
+							return nullptr;
+						}
+						*current = nlohmann::json::object();
+					}
+
+					if (!current->contains(k))
+					{
+						if (!_createMissing)
+						{
+							return nullptr;
+						}
+						(*current)[k] = nullptr;
+					}
+					current = &(*current)[k];
+					break;
+				}
+
+				case PathKey::Type::SizeT:
+				case PathKey::Type::Int:
+				{
+					// For int indexes, check non-negativity first to avoid implicit conversion
+					if (key.type == PathKey::Type::Int && key.int_val < 0)
+					{
+						return nullptr;
+					}
+
+					size_t idx = (key.type == PathKey::Type::SizeT) ? key.size_val : static_cast<size_t>(key.int_val);
+
+					// Current node must be an array; null can be converted to an array when creation is allowed
+					if (!current->is_array())
+					{
+						if (!_createMissing || !current->is_null())
+						{
+							return nullptr;
+						}
+						*current = nlohmann::json::array();
+					}
+
+					// Ensure the array is long enough, padding with null when it falls short
+					if (idx >= current->size())
+					{
+						if (!_createMissing)
+						{
+							return nullptr;
+						}
+						while (current->size() <= idx)
+						{
+							current->push_back(nullptr);
+						}
+					}
+					current = &(*current)[idx];
+					break;
+				}		// Unknown type
+
+				default:
+					return nullptr;  // Unknown type
+				}
+			}
+#endif
 			return current;
 		}
 
 		/*
 		 ============================================================================
-		 Function: Navigate
+		 Function: Navgate
 		 Description: Navigates to a JSON node
 		 Parameters:
 			 - nlohmann::json& root: Root node
@@ -1063,47 +1347,107 @@ namespace ALL_AI
 		inline nlohmann::json* JsonRequestBuilder::Navigate(nlohmann::json& _root, const std::vector<PathKey>& _path)
 		{
 			nlohmann::json* current = &_root;
-
+#if __ALL_AI_CXX_VERSION >= 17L
 			for (const auto& key : _path)
 			{
-				// Accesses current node
+				// Access the current node
 				std::visit([&](auto&& k) {
-					using T = std::decay_t<decltype(k)>;
+					using _Key_T = std::decay_t<decltype(k)>;
 
-					if constexpr (std::is_same_v<T, std::string>)
+					if constexpr (std::is_same_v<_Key_T, std::string>)
 					{
-						if (!current->contains(k) || !current->is_object())
+						// Must be an object and the key must exist, otherwise the lookup fails
+						if (!current->is_object() || !current->contains(k))
 						{
 							current = nullptr;
 							return;
 						}
 						current = &(*current)[k];
 					}
-					else if constexpr (std::is_same_v<T, size_t>)
+					else if constexpr (std::is_same_v<_Key_T, size_t> || std::is_same_v<_Key_T, int>)
 					{
-						if (!current->is_array() || k >= current->size())
+						// For int indexes, check non-negativity first to avoid implicit conversion to a huge size_t
+						if constexpr (std::is_same_v<_Key_T, int>)
+						{
+							if (k < 0)
+							{
+								current = nullptr;
+								return;
+							}
+						}
+						const size_t idx = static_cast<size_t>(k);
+
+						// Must be an array and the index must be within range, otherwise the lookup fails
+						if (!current->is_array() || idx >= current->size())
 						{
 							current = nullptr;
 							return;
 						}
-						current = &(*current)[k];
+						current = &(*current)[idx];
 					}
 					}, key);
 
-				// If current node is nullptr, returns nullptr
+				// If the current node is nullptr, return nullptr
 				if (current == nullptr)
 				{
 					return nullptr;
 				}
 			}
+#elif __ALL_AI_CXX_VERSION >= 14L
+			for (const PathKey& key : _path)
+			{
+				switch (key.type)
+				{
+				case PathKey::Type::String:
+				{
+					const std::string& k = key.str_val;
 
+					// Must be an object and the key must exist, otherwise the lookup fails
+					if (!current->is_object() || !current->contains(k))
+					{
+						return nullptr;
+					}
+					current = &(*current)[k];
+					break;
+				}
+
+				case PathKey::Type::SizeT:
+				case PathKey::Type::Int:
+				{
+					// For int indexes, check non-negativity first to avoid implicit conversion to a huge size_t
+					if (key.type == PathKey::Type::Int && key.int_val < 0)
+					{
+						return nullptr;
+					}
+
+					size_t idx = (key.type == PathKey::Type::SizeT)
+						? key.size_val
+						: static_cast<size_t>(key.int_val);
+
+					// Must be an array and the index must be within range, otherwise the lookup fails
+					if (!current->is_array() || idx >= current->size())
+					{
+						return nullptr;
+					}
+					current = &(*current)[idx];
+					break;
+				}		// Unknown type
+
+				default:
+					return nullptr;  // Unknown type
+				}
+			}
+#endif
 			return current;
 		}
 
-
 		// JSON parsing strategy
-		class JsonResponceParser : public IResponseParserStrategy {
+		class JsonResponseParser : public IResponseParserStrategy {
 		public:
+
+			JsonResponseParser() {}
+
+			virtual ~JsonResponseParser() override = default;
 
 			/*
 			 ============================================================================
@@ -1116,7 +1460,6 @@ namespace ALL_AI
 			*/
 			virtual void Parse(const nlohmann::json& response) override
 			{
-				std::lock_guard<std::mutex> lock(this->m_mutex_response);
 				this->m_response_json = response;
 				return;
 			}
@@ -1166,12 +1509,23 @@ namespace ALL_AI
 		private:
 
 			// Base case for recursively retrieving a JSON field value
-			template <typename _T_Type, typename _Key>
-			_T_Type _getValue(const nlohmann::json& _json, _Key&& key);
+			template <typename _T_Type>
+			_T_Type _getValue(const nlohmann::json& _json);
 
 			// Recursive intermediate case for retrieving a JSON field value
 			template <typename _T_Type, typename _First, typename... Args>
 			_T_Type _getValue(const nlohmann::json& _json, _First&& first, Args... rest);
+
+#if __ALL_AI_CXX_VERSION >= 17L
+			// TODO
+#elif __ALL_AI_CXX_VERSION >= 14L
+			// Get a JSON field value - recursive intermediate layer, array index version
+			template <typename _T_Type, typename _Index, typename... Args>
+			_T_Type _getValueStep(const nlohmann::json& _json, _Index first, std::true_type, Args... rest);
+			// Get a JSON field value - recursive intermediate layer, object key version
+			template <typename _T_Type, typename _Key, typename... Args>
+			_T_Type _getValueStep(const nlohmann::json& _json, _Key&& first, std::false_type, Args... rest);
+#endif
 
 		private:
 			nlohmann::json m_response_json;
@@ -1188,7 +1542,7 @@ namespace ALL_AI
 		 ============================================================================
 		*/
 		template <typename _T_Type, typename... _Keys>
-		inline _T_Type JsonResponceParser::GetValue(_Keys... _keys)
+		_T_Type JsonResponseParser::GetValue(_Keys... _keys)
 		{
 			std::lock_guard<std::mutex> lock(this->m_mutex_response);
 			return _getValue<_T_Type>(this->m_response_json, std::forward<_Keys>(_keys)...);
@@ -1197,46 +1551,22 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _getValue
-		 Description: Base layer for retrieving the value of a specific JSON field
+		 Description: Get the value of a specified JSON field - interface termination layer
 		 Parameters:
-		   - nlohmann::json&: The JSON object from which the value is retrieved
-		   - _Key&&: The specified key or index
-		 Return: Returns a specialized value on success; otherwise returns a default-constructed value
+		   - nlohmann::json&: The JSON object from which to get the value
+		 Return: Returns the specialized value on success, otherwise an empty (default-constructed) value
 		 ============================================================================
 		*/
-		template <typename _T_Type, typename _Key>
-		inline _T_Type JsonResponceParser::_getValue(const nlohmann::json& _json, _Key&& key)
+		template <typename _T_Type>
+		_T_Type JsonResponseParser::_getValue(const nlohmann::json& _json)
 		{
-			// When a field exists but its type does not match (e.g. extracting content as a string
-			// while it is null), nlohmann's implicit conversion throws type_error. Catch it here and
-			// handle it according to the configured error mode so the exception never escapes to user code
 			try
 			{
-				if constexpr (std::is_integral_v<std::decay_t<_Key>>)
-				{
-					// Array index
-					if (!_json.is_array() || key < 0 || key >= _json.size())
-					{
-						std::string err = "Array index out of bounds: " + std::to_string(key);
-						DoErrorThrow(err);
-						return _T_Type{};
-					}
-					return _json.at(key);
-				}
-				else
-				{
-					// Object key
-					if (!_json.contains(key))
-					{
-						std::string err = "Key not found: " + std::string(key);
-						DoErrorThrow(err);
-						return _T_Type{};
-					}
-					return _json.at(key);
-				}
+				return _json.get<_T_Type>();
 			}
 			catch (const nlohmann::json::exception& e)
 			{
+				// The field exists but its type does not match (e.g. content is null but is being extracted as a string),
 				DoErrorThrow(e.what());
 				return _T_Type{};
 			}
@@ -1245,46 +1575,102 @@ namespace ALL_AI
 		/*
 		 ============================================================================
 		 Function: _getValue
-		 Description: Recursive intermediate layer for retrieving the value of a specific JSON field
+		 Description: Get the value of a specified JSON field - interface intermediate layer
+		 Writes only when all intermediate objects along the entire path already exist; otherwise it gives up and returns false.
 		 Parameters:
-		   - nlohmann::json&: The JSON object from which the value is retrieved
-		   - _First&&: The first key or index in the path
-		   - Args&&...: Remaining keys (variadic arguments), which may be empty
-		 Return: Returns the requested type on success; otherwise returns a default value
+		   - nlohmann::json&: The JSON object from which to get the value
+		   - _First&&: The first key along the path
+		   - Args&&...: Remaining keys (variadic parameter pack), length may be 0
+		 Return: Returns the data of the corresponding type on success, otherwise empty data
 		 ============================================================================
 		*/
+#if __ALL_AI_CXX_VERSION >= 17L
 		template <typename _T_Type, typename _First, typename... Args>
-		inline _T_Type JsonResponceParser::_getValue(const nlohmann::json& _json, _First&& first, Args... rest)
+		_T_Type JsonResponseParser::_getValue(const nlohmann::json& _json, _First&& first, Args... rest)
 		{
-			nlohmann::json next_json = nullptr;
-
-			// Determine whether `first` is an array index or an object key and handle access errors accordingly
 			if constexpr (std::is_integral_v<std::decay_t<_First>>)
 			{
 				// Array index
-				if (!_json.is_array() || first < 0 || first >= _json.size())
+				if (!_json.is_array() || first < 0 || static_cast<size_t>(first) >= _json.size())
 				{
 					std::string err = "Array index out of bounds: " + std::to_string(first);
 					DoErrorThrow(err);
 					return _T_Type{};
 				}
-				next_json = _json.at(first);
+				return _getValue<_T_Type>(_json.at(first), std::forward<Args>(rest)...);
 			}
 			else
 			{
 				// Object key
-				if (!_json.contains(first))
+				if (!_json.is_object() || !_json.contains(first))
 				{
-					// Handle the error according to the selected error mode
 					std::string err = "Key not found: " + std::string(first);
 					DoErrorThrow(err);
 					return _T_Type{};
 				}
-				next_json = _json.at(first);
+				return _getValue<_T_Type>(_json.at(first), std::forward<Args>(rest)...);
 			}
-
-			return _getValue<_T_Type>(next_json, std::forward<Args>(rest)...);
 		}
+#elif __ALL_AI_CXX_VERSION >= 14L
+		template <typename _T_Type, typename _First, typename... Args>
+		_T_Type JsonResponseParser::_getValue(const nlohmann::json& _json, _First&& first, Args... rest)
+		{
+			return _getValueStep<_T_Type>(_json, std::forward<_First>(first),		// Note: C++14 has no _v suffix
+				std::is_integral<std::decay_t<_First>>{},  // Note: C++14 has no _v suffix
+				std::forward<Args>(rest)...);
+		}
+
+		// Array index version (selected when _First is an integral type)
+		template <typename _T_Type, typename _Index, typename... Args>
+		_T_Type JsonResponseParser::_getValueStep(const nlohmann::json& _json, _Index first, std::true_type, Args... rest)
+		{
+			if (!_json.is_array() || first < 0 || static_cast<size_t>(first) >= _json.size())
+			{
+				std::string err = "Array index out of bounds: " + std::to_string(first);
+				DoErrorThrow(err);
+				return _T_Type{};
+			}
+			return _getValue<_T_Type>(_json.at(first), std::forward<Args>(rest)...);
+		}
+
+		// Object key version (selected when _First is not an integral type)
+		template <typename _T_Type, typename _Key, typename... Args>
+		_T_Type JsonResponseParser::_getValueStep(const nlohmann::json& _json, _Key&& first, std::false_type, Args... rest)
+		{
+			if (!_json.is_object() || !_json.contains(first))
+			{
+				std::string err = "Key not found: " + std::string(first);
+				DoErrorThrow(err);
+				return _T_Type{};
+			}
+			return _getValue<_T_Type>(_json.at(first), std::forward<Args>(rest)...);
+		}
+#endif
+
+	}
+
+	/*
+	 ============================================================================
+	 Function: JsonGet
+	 Description: Stateless JSON value access (free function): safely navigate the given
+	 json by path in a single call, without the two-step Parse/GetValue of
+	 JsonResponseParser. Path keys support strings (object keys) and integers
+	 (array indices), identical to JsonResponseParser::GetValue. On a missing path
+	 or type mismatch the configured error mode applies and T{} is returned
+	 Parameters:
+		 - const nlohmann::json& data: The json object to read from
+		 - Args&&... keys: Path keys (strings / integers, variadic)
+	 Return: Returns the value, or T{} on failure
+	 Example: std::string id = ALL_AI::JsonGet<std::string>(resp, "id");
+	          std::string s = ALL_AI::JsonGet<std::string>(resp, "choices", 0, "message", "content");
+	 ============================================================================
+	*/
+	template <typename _T_Type, typename... Args>
+	_T_Type JsonGet(const nlohmann::json& data, Args&&... keys)
+	{
+		JsonOperator::JsonResponseParser parser;
+		parser.Parse(data);
+		return parser.GetValue<_T_Type>(std::forward<Args>(keys)...);
 	}
 
 	// Utility class for JSON operations
@@ -1331,6 +1717,7 @@ namespace ALL_AI
 		*/
 		nlohmann::json::array_t GetMessagesArray()
 		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_json);
 			return this->m_array;
 		}
 
@@ -1373,7 +1760,7 @@ namespace ALL_AI
 		 ============================================================================
 		 Function: Base64Encode
 		 Description: Encode binary data into a base64 string,
-					 used to build base64 image messages for vision models (data:image/xxx;base64,...)
+		 used to build base64 image messages for vision models (data:image/xxx;base64,...)
 		 Parameters:
 			 - const std::string& data: The binary data to encode
 		 Return: Returns the base64-encoded string
@@ -1413,7 +1800,7 @@ namespace ALL_AI
 		 ============================================================================
 		 Function: FileToBase64
 		 Description: Read a local file (in binary mode) and encode it as a base64 string,
-					 commonly used to feed local images to vision models
+		 commonly used to feed local images to vision models
 		 Parameters:
 			 - const std::string& file_path: Local file path
 		 Return: Returns the base64-encoded string on success, or an empty string if the file does not exist or is unreadable
@@ -1464,45 +1851,46 @@ namespace ALL_AI
 	// File operation related classes and functions (file type detection, multimodal content building, etc.)
 	// File processing strategies and the strategy factory are defined after the AI class
 	// (strategies depend on the AI class interface)
-	namespace FileOperator {
+	namespace FileOperator {		// Unknown type (handled as a document by default)
 
 		// File type enumeration, determines the processing strategy for a file
-		enum class FileType {
-			Unknown,	// Unknown type (handled as a document by default)
-			Document,	// Document/text: txt, md, pdf, doc, xls, ppt, csv, etc.
-			Image,		// Image: jpg, png, gif, webp, bmp, heic, etc.
+		enum class FileType {		// Document/text: txt, md, pdf, doc, xls, ppt, csv, etc.
+			Unknown,		// Image: jpg, png, gif, webp, bmp, heic, etc.
+			Document,		// Video: mp4, mov, avi, webm, wmv, etc.
+			Image,		// Audio: mp3, wav, m4a, flac, ogg, etc.
 			Video,		// Video: mp4, mov, avi, webm, wmv, etc.
 			Audio		// Audio: mp3, wav, m4a, flac, ogg, etc.
-		};
+		};		// "file-extract": extract file content (document/text files)
 
 		// File purpose enumeration, corresponds to the purpose field of the file API
-		enum class FilePurpose {
-			FileExtract,	// "file-extract": extract file content (document/text files)
-			Image,			// "image": upload an image for visual understanding
+		enum class FilePurpose {		// "image": upload an image for visual understanding
+			FileExtract,		// "video": upload a video for video understanding
+			Image,		// "batch": upload a JSONL file for batch jobs
 			Video,			// "video": upload a video for video understanding
-			Batch			// "batch": upload a JSONL file for batch jobs
-		};
+			Batch			// "batch": upload a JSONL file for batch tasks
+		};		// Base64-encode and embed directly in the message (recommended for single images)
 
 		// Image transport mode enumeration
-		enum class ImageTransportMode {
-			Base64,			// Base64-encode and embed directly in the message (recommended for single images)
-			UploadReference	// Upload (purpose=image) and reference by file ID (recommended when referenced multiple times)
-		};
+		enum class ImageTransportMode {		// Upload (purpose=image) and reference by file ID (recommended when referenced multiple times)
+			Base64,			// base64-encode and embed directly in the message (recommended for a single image)
+			UploadReference	// upload (purpose=image) and reference by file ID (recommended when referenced multiple times)
+		};		// Local file path
 
 		// File upload result
-		struct FileUploadResult {
-			std::string file_path;							// Local file path
-			std::string file_id;							// File ID returned by the server on successful upload
-			FileType file_type = FileType::Unknown;			// Detected file type
-			bool success = false;							// Whether the upload succeeded
-			nlohmann::json raw_response;					// Raw server response
+		struct FileUploadResult {		// File ID returned by the server on successful upload
+			std::string file_path;		// Detected file type
+			std::string file_id;		// Whether the upload succeeded
+			FileType file_type = FileType::Unknown;		// Raw server response
+			bool success = false;							// whether the upload succeeded
+			nlohmann::json raw_response;					// raw server response
 		};
 
 		/*
 		 ============================================================================
 		 Class: FileTypeDetector
 		 Description: File type detector. Detects the file type by extension and derives the default
-					 purpose and MIME type. All methods are static; no instantiation is required
+		 purpose and MIME type. All methods are static; no instantiation is required
+					 All methods are static; no instantiation is required
 		 ============================================================================
 		*/
 		class FileTypeDetector {
@@ -1521,7 +1909,9 @@ namespace ALL_AI
 			{
 				static const std::unordered_set<std::string> document_exts = {
 					"txt", "md", "pdf", "doc", "docx", "xls", "xlsx",
-					"ppt", "pptx", "csv", "json", "xml", "html", "htm", "epub"
+					"ppt", "pptx", "csv", "json", "xml", "html", "htm", "epub",
+					"c", "cpp", "h", "java", "py", "rb", "sql", "js", "ts", "go",
+					"hpp", "css", "less", "sass", "scss", "jsonl", "jsonld", "jsonb"
 				};
 				static const std::unordered_set<std::string> image_exts = {
 					"jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif"
@@ -1619,15 +2009,22 @@ namespace ALL_AI
 			static std::string GetMimeType(const std::string& file_path)
 			{
 				static const std::unordered_map<std::string, std::string> mime_map = {
+					// document
+					{"txt", "text/plain"},
+					// Image
 					{"jpg", "image/jpeg"}, {"jpeg", "image/jpeg"}, {"png", "image/png"},
 					{"gif", "image/gif"}, {"webp", "image/webp"}, {"bmp", "image/bmp"},
 					{"heic", "image/heic"}, {"heif", "image/heif"},
+					// Video
 					{"mp4", "video/mp4"}, {"mpeg", "video/mpeg"}, {"mov", "video/quicktime"},
 					{"avi", "video/x-msvideo"}, {"flv", "video/x-flv"}, {"mpg", "video/mpeg"},
 					{"webm", "video/webm"}, {"wmv", "video/x-ms-wmv"}, {"3gpp", "video/3gpp"},
+					// Audio
 					{"mp3", "audio/mpeg"}, {"wav", "audio/wav"}, {"m4a", "audio/mp4"},
 					{"flac", "audio/flac"}, {"ogg", "audio/ogg"}, {"aac", "audio/aac"},
-					{"wma", "audio/x-ms-wma"}, {"pdf", "application/pdf"}, {"txt", "text/plain"}
+					{"wma", "audio/x-ms-wma"},
+					// other
+					{"pdf", "application/pdf"}
 				};
 
 				std::string ext = GetExtensionLower(file_path);
@@ -1675,7 +2072,8 @@ namespace ALL_AI
 		 ============================================================================
 		 Class: ContentPartBuilder
 		 Description: Multimodal content part builder (Builder pattern) with a fluent API,
-					 e.g. ContentPartBuilder().AddText("Describe the image").AddImageBase64("a.jpg").BuildUserMessage()
+		 e.g. ContentPartBuilder().AddText("Describe the image").AddImageBase64("a.jpg").BuildUserMessage()
+					 Example: ContentPartBuilder().AddText("describe the image").AddImageBase64("a.jpg").BuildUserMessage()
 		 ============================================================================
 		*/
 		class ContentPartBuilder {
@@ -1739,7 +2137,7 @@ namespace ALL_AI
 			 ============================================================================
 			 Function: AddImageFileId
 			 Description: Add an already-uploaded image part by file ID reference
-						 (the file must have been uploaded with purpose="image")
+			 (the file must have been uploaded with purpose="image")
 			 Parameters:
 				 - const std::string& file_id: File ID
 			 Return: Returns the builder itself for chaining
@@ -1758,7 +2156,7 @@ namespace ALL_AI
 			 ============================================================================
 			 Function: AddVideoFileId
 			 Description: Add an already-uploaded video part by file ID reference
-						 (the file must have been uploaded with purpose="video")
+			 (the file must have been uploaded with purpose="video")
 			 Parameters:
 				 - const std::string& file_id: File ID
 			 Return: Returns the builder itself for chaining
@@ -1769,6 +2167,33 @@ namespace ALL_AI
 				m_parts.push_back({
 					{"type", "video_url"},
 					{"video_url", {{"url", "ms://" + file_id}}}
+					});
+				return *this;
+			}
+
+			/*
+			 ============================================================================
+			 Function: AddAudioBase64
+			 Description: Add a local audio part (reads the file and base64-encodes it into
+					 a data URL, an OpenAI-compatible audio_url content part). Used as audio
+					 input for audio-capable multimodal models
+			 Parameters:
+				 - const std::string& file_path: Local audio path
+			 Return: Returns the builder itself for chaining. No part is added if the file cannot be read
+			 ============================================================================
+			*/
+			ContentPartBuilder& AddAudioBase64(const std::string& file_path)
+			{
+				std::string base64_data = JsonOperatorTools::FileToBase64(file_path);
+				if (base64_data.empty())
+				{
+					return *this;
+				}
+
+				std::string mime = FileTypeDetector::GetMimeType(file_path);
+				m_parts.push_back({
+					{"type", "audio_url"},
+					{"audio_url", {{"url", "data:" + mime + ";base64," + base64_data}}}
 					});
 				return *this;
 			}
@@ -1797,12 +2222,12 @@ namespace ALL_AI
 			 ============================================================================
 			*/
 			nlohmann::json BuildUserMessage() const
-			{
+			{		// Content parts array
 				return { {"role", "user"}, {"content", m_parts} };
 			}
 
 		private:
-			nlohmann::json m_parts;	// Content parts array
+			nlohmann::json m_parts;	// content parts array
 		};
 	}
 
@@ -1822,9 +2247,9 @@ namespace ALL_AI
 		 ============================================================================
 		 Function: SendMultipartRequest
 		 Description: Send a multipart/form-data request (file upload). The default implementation
-					 reports "not supported"; concrete transport classes override it. This is a
-					 virtual function (not pure virtual) so that existing user-defined transport
-					 classes continue to compile without modification
+		 reports "not supported"; concrete transport classes override it. This is a
+		 virtual function (not pure virtual) so that existing user-defined transport
+		 classes continue to compile without modification
 		 Parameters:
 			 - const std::string& url: Full URL of the file endpoint (e.g. https://api.moonshot.cn/v1/files)
 			 - const std::string& file_path: Local file path
@@ -1846,9 +2271,9 @@ namespace ALL_AI
 		 ============================================================================
 		 Function: SendRequestRaw
 		 Description: Send a plain HTTP request and return the raw response string (no JSON parsing),
-					 used for endpoints whose response may not be JSON (e.g. retrieving file content).
-					 The default implementation reports "not supported"; concrete transport
-					 classes override it
+		 used for endpoints whose response may not be JSON (e.g. retrieving file content).
+		 The default implementation reports "not supported"; concrete transport
+		 classes override it
 		 Parameters:
 			 - HttpMethod method: HTTP method
 			 - const std::string& url: Full URL of the request
@@ -1859,6 +2284,32 @@ namespace ALL_AI
 		{
 			DoErrorThrow("IHttpTransport: SendRequestRaw is not supported by this transport");
 			return std::string{};
+		}
+
+		/*
+		 ============================================================================
+		 Function: SendRequestRaw
+		 Description: Send a plain HTTP request (optionally with a JSON body) and deliver
+		 the response chunk by chunk through a data callback, for endpoints that return
+		 binary streams (e.g. TTS audio) or other non-JSON data. The default
+		 implementation ignores the body and the callback and falls back to the
+		 two-argument overload, so existing user-defined transports keep compiling
+		 Parameters:
+			 - HttpMethod method: HTTP method
+			 - const std::string& url: Full URL of the request
+			 - const nlohmann::json* body: Optional JSON request body, nullptr for none
+			 - DataCallback data_callback: Data callback; an empty callback means
+			 the whole response is collected and returned as a string
+		 Return: Returns the raw response string (usually empty when a callback is set,
+		 as the data belongs to the callback), or an empty string on failure
+		 ============================================================================
+		*/
+		virtual std::string SendRequestRaw(HttpMethod method, const std::string& url,
+			const nlohmann::json* body, DataCallback data_callback)
+		{
+			(void)body;
+			(void)data_callback;
+			return SendRequestRaw(method, url);
 		}
 	};
 
@@ -1911,6 +2362,7 @@ namespace ALL_AI
 				const ALL_AI_ErrorThrow all_ai_error_throw) override
 			{
 				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
+
 				if (url.empty() || api_key.empty())
 				{
 					DoErrorThrow("CurlHttpTransport: url or api_key is empty");
@@ -1997,13 +2449,17 @@ namespace ALL_AI
 				std::string authHeader = "Authorization: Bearer " + this->m_key;
 				headers = curl_slist_append(headers, authHeader.c_str());
 				headers = curl_slist_append(headers, "Content-Type: application/json");
-				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
+				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);		// libcurl 7.56.0 and above: clear any residual multipart state
 
 				// Clear any residual request flags
 				curl_easy_setopt(this->m_curl, CURLOPT_POST, 0L);
 				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, nullptr);
+				// Restore the default body length (-1 = strlen): a previous request (e.g. TTS)
+				// may have set an explicit POSTFIELDSIZE; without this reset, later request
+				// bodies would be truncated to the stale length and rejected with HTTP 400
+				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE, -1L);
 				curl_easy_setopt(this->m_curl, CURLOPT_NOBODY, 0L);
-#if LIBCURL_VERSION_NUM >= 0x073800	// libcurl 7.56.0 and above: clear any residual multipart state
+#if LIBCURL_VERSION_NUM >= 0x073800	// libcurl 7.56.0 and above: clear any residual multipart flags
 				curl_easy_setopt(this->m_curl, CURLOPT_MIMEPOST, nullptr);
 #endif
 				// Ensure the URL is the one set during initialization
@@ -2019,6 +2475,8 @@ namespace ALL_AI
 				if (method == HttpMethod::POST)
 				{
 					curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, str_json.c_str());
+					// Set the body length explicitly (consistent with the cleanup logic)
+					curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(str_json.size()));
 				}
 				else if (method == HttpMethod::GET)
 				{
@@ -2030,7 +2488,7 @@ namespace ALL_AI
 				curl_easy_setopt(this->m_curl, CURLOPT_WRITEDATA, &str_Buffer);
 
 				// Execute the request
-				CURLcode res = curl_easy_perform(this->m_curl);
+				CURLcode res = curl_easy_perform(this->m_curl);		// Ensure we free headers
 				if (res != CURLE_OK)
 				{
 					std::string error_message = "curl_easy_perform failed: " + std::string(curl_easy_strerror(res));
@@ -2054,7 +2512,7 @@ namespace ALL_AI
 				if (str_Buffer.empty())
 				{
 					curl_slist_free_all(headers);
-					DoErrorThrow("Error: Empty response received from server");
+					DoErrorThrow("Empty response received from server");
 					return nlohmann::json{};
 				}
 
@@ -2087,14 +2545,14 @@ namespace ALL_AI
 			 ============================================================================
 			 Function: SendMultipartRequest
 			 Description: Send a multipart/form-data request (file upload). Builds the form with
-						 the libcurl mime API; compatible with OpenAI-style /v1/files upload endpoints
+			 the libcurl mime API; compatible with OpenAI-style /v1/files upload endpoints
 			 Parameters:
 				 - const std::string& url: Full URL of the file endpoint (e.g. https://api.moonshot.cn/v1/files)
 				 - const std::string& file_path: Local file path
 				 - const std::string& file_field_name: Name of the file field in the form ("file" for OpenAI-compatible APIs)
 				 - const std::unordered_map<std::string, std::string>& form_fields: Additional form fields besides the file (e.g. purpose)
 			 Return: Returns a nlohmann::json representing the server response.
-					 If the request fails, an empty nlohmann::json object is returned
+			 If the request fails, an empty nlohmann::json object is returned
 			 ============================================================================
 			*/
 			virtual nlohmann::json SendMultipartRequest(const std::string& url,
@@ -2106,16 +2564,18 @@ namespace ALL_AI
 
 				// If initialization failed, return an empty JSON object when a request is made
 				if (this->m_curl == nullptr)
-				{
+				{		// The mime API requires libcurl 7.56.0 or later
 					DoErrorThrow("CurlHttpTransport: curl is not initialized or failed to initialize");
 					return nlohmann::json{};
 				}
 
-#if LIBCURL_VERSION_NUM < 0x073800	// The mime API requires libcurl 7.56.0 or later
+#if LIBCURL_VERSION_NUM < 0x073800	// the mime API requires libcurl 7.56.0 or later
 				DoErrorThrow("CurlHttpTransport: SendMultipartRequest requires libcurl 7.56.0 or later");
 				return nlohmann::json{};
 #else
-				// Check that the local file exists and is readable
+				// Check that the local file exists and is readable (skipped when file_path
+				// is empty, which means a fields-only multipart request)
+				if (!file_path.empty())
 				{
 					std::ifstream file_check(file_path, std::ios::binary);
 					if (!file_check.good())
@@ -2133,10 +2593,15 @@ namespace ALL_AI
 					return nlohmann::json{};
 				}
 
-				// Add the file field; libcurl reads the file content and fills in the filename automatically
-				curl_mimepart* part = curl_mime_addpart(mime);
-				curl_mime_name(part, file_field_name.c_str());
-				curl_mime_filedata(part, file_path.c_str());
+				// Add the file field; libcurl reads the file content and fills in the filename
+				// automatically (skipped when file_path is empty)
+				curl_mimepart* part = nullptr;
+				if (!file_path.empty())
+				{
+					part = curl_mime_addpart(mime);
+					curl_mime_name(part, file_field_name.c_str());
+					curl_mime_filedata(part, file_path.c_str());
+				}
 
 				// Add other plain form fields (e.g. purpose=file-extract)
 				for (const auto& field : form_fields)
@@ -2162,6 +2627,9 @@ namespace ALL_AI
 				// Clear any residual request flags to avoid state pollution from previous requests
 				curl_easy_setopt(this->m_curl, CURLOPT_POST, 0L);
 				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, nullptr);
+				// Restore the default body length (-1 = strlen), clearing any explicit
+				// POSTFIELDSIZE left by a previous request
+				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE, -1L);
 				curl_easy_setopt(this->m_curl, CURLOPT_NOBODY, 0L);
 				curl_easy_setopt(this->m_curl, CURLOPT_CUSTOMREQUEST, nullptr);
 				curl_easy_setopt(this->m_curl, CURLOPT_HTTPGET, 0L);
@@ -2228,8 +2696,8 @@ namespace ALL_AI
 			 ============================================================================
 			 Function: SendRequestRaw
 			 Description: Send a plain HTTP request and return the raw response string (no JSON parsing),
-						 used for endpoints such as file content or file list. The initialization URL
-						 is restored after the request completes
+			 used for endpoints such as file content or file list. The initialization URL
+			 is restored after the request completes
 			 Parameters:
 				 - HttpMethod method: HTTP method
 				 - const std::string& url: Full URL of the request
@@ -2273,13 +2741,17 @@ namespace ALL_AI
 				}
 				std::string authHeader = "Authorization: Bearer " + this->m_key;
 				headers = curl_slist_append(headers, authHeader.c_str());
-				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
+				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);		// libcurl 7.56.0 and above: clear any residual multipart state
 
 				// Clear any residual request flags
 				curl_easy_setopt(this->m_curl, CURLOPT_POST, 0L);
 				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, nullptr);
+				// Restore the default body length (-1 = strlen): a previous request (e.g. TTS)
+				// may have set an explicit POSTFIELDSIZE; without this reset, later request
+				// bodies would be truncated to the stale length and rejected with HTTP 400
+				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE, -1L);
 				curl_easy_setopt(this->m_curl, CURLOPT_NOBODY, 0L);
-#if LIBCURL_VERSION_NUM >= 0x073800	// libcurl 7.56.0 and above: clear any residual multipart state
+#if LIBCURL_VERSION_NUM >= 0x073800	// libcurl 7.56.0 and above: clear any residual multipart flags
 				curl_easy_setopt(this->m_curl, CURLOPT_MIMEPOST, nullptr);
 #endif
 				if (method == HttpMethod::GET)
@@ -2309,6 +2781,141 @@ namespace ALL_AI
 				}
 
 				// Check HTTP response code
+				long http_code = 0;
+				curl_easy_getinfo(this->m_curl, CURLINFO_RESPONSE_CODE, &http_code);
+				if (http_code < 200 || http_code >= 300)
+				{
+					std::string error_message = "HTTP error: " + std::to_string(http_code) + ", Response: " + str_Buffer;
+					DoErrorThrow(error_message);
+					return std::string{};
+				}
+
+				return str_Buffer;
+			}
+
+			/*
+			 ============================================================================
+			 Function: SendRequestRaw
+			 Description: Send a plain HTTP request (optionally with a JSON body) and deliver
+			 the response chunk by chunk through a data callback, for endpoints that return
+			 binary streams (e.g. TTS audio) or other non-JSON data. The initialization
+			 URL is restored after the request completes
+			 Parameters:
+				 - HttpMethod method: HTTP method
+				 - const std::string& url: Full URL of the request
+				 - const nlohmann::json* body: Optional JSON request body, nullptr for none
+				 - DataCallback data_callback: Data callback; an empty callback means
+				 the whole response is collected and returned as a string
+			 Return: Returns the raw response string (empty when a callback is set),
+			 or an empty string on failure
+			 ============================================================================
+			*/
+			virtual std::string SendRequestRaw(HttpMethod method, const std::string& url,
+				const nlohmann::json* body, DataCallback data_callback) override
+			{
+				// Without a body and without a callback, fall back to the two-argument overload
+				if (body == nullptr && !data_callback)
+				{
+					return SendRequestRaw(method, url);
+				}
+
+				std::lock_guard<std::mutex> lock(this->m_mutex_curl_request);
+
+				// If initialization failed, return an empty string when a request is made
+				if (this->m_curl == nullptr)
+				{
+					DoErrorThrow("CurlHttpTransport: curl is not initialized or failed to initialize");
+					return std::string{};
+				}
+
+				if (method == HttpMethod::POST)
+				{
+					curl_easy_setopt(this->m_curl, CURLOPT_CUSTOMREQUEST, "POST");
+				}
+				else if (method == HttpMethod::GET)
+				{
+					curl_easy_setopt(this->m_curl, CURLOPT_CUSTOMREQUEST, "GET");
+				}
+				else if (method == HttpMethod::DELETE)
+				{
+					curl_easy_setopt(this->m_curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+				}
+				else
+				{
+					return std::string{};
+				}
+
+				// Set request headers
+				struct curl_slist* headers = nullptr;
+				if (this->m_key.empty())
+				{
+					DoErrorThrow("CurlHttpTransport: API key is empty");
+					return std::string{};
+				}
+				std::string authHeader = "Authorization: Bearer " + this->m_key;
+				headers = curl_slist_append(headers, authHeader.c_str());
+
+				// Clear any residual request flags
+				curl_easy_setopt(this->m_curl, CURLOPT_POST, 0L);
+				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, nullptr);
+				// Restore the default body length (-1 = strlen): a previous request (e.g. TTS)
+				// may have set an explicit POSTFIELDSIZE; without this reset, later request
+				// bodies would be truncated to the stale length and rejected with HTTP 400
+				curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE, -1L);
+				curl_easy_setopt(this->m_curl, CURLOPT_NOBODY, 0L);
+#if LIBCURL_VERSION_NUM >= 0x073800	// libcurl 7.56.0 and above: clear any residual multipart flags
+				curl_easy_setopt(this->m_curl, CURLOPT_MIMEPOST, nullptr);
+#endif
+				if (method == HttpMethod::GET)
+				{
+					curl_easy_setopt(this->m_curl, CURLOPT_HTTPGET, 1L);
+				}
+
+				// Attach the JSON request body (required by endpoints such as TTS)
+				std::string str_body;
+				if (body != nullptr)
+				{
+					str_body = body->dump();
+					headers = curl_slist_append(headers, "Content-Type: application/json");
+					curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, str_body.c_str());
+					curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(str_body.size()));
+				}
+				curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
+
+				// Set the target URL
+				curl_easy_setopt(this->m_curl, CURLOPT_URL, url.c_str());
+
+				// With a data callback the response is delivered chunk by chunk (no collection);
+				// otherwise the whole response is collected and returned
+				std::string str_Buffer;
+				if (data_callback)
+				{
+					curl_easy_setopt(this->m_curl, CURLOPT_WRITEFUNCTION, DataCallbackWriter);
+					curl_easy_setopt(this->m_curl, CURLOPT_WRITEDATA, &data_callback);
+				}
+				else
+				{
+					curl_easy_setopt(this->m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+					curl_easy_setopt(this->m_curl, CURLOPT_WRITEDATA, &str_Buffer);
+				}
+
+				// Execute the request
+				CURLcode res = curl_easy_perform(this->m_curl);
+
+				// Restore the URL so subsequent plain JSON requests are not affected
+				curl_easy_setopt(this->m_curl, CURLOPT_URL, this->m_url.c_str());
+				curl_slist_free_all(headers);
+
+				if (res != CURLE_OK)
+				{
+					std::string error_message = "curl_easy_perform failed: " + std::string(curl_easy_strerror(res));
+					DoErrorThrow(error_message);
+					return std::string{};
+				}
+
+				// Check HTTP response code
+				// Note: with a callback set, str_Buffer is empty and the error message carries
+				// no response body (the response was delivered to the callback)
 				long http_code = 0;
 				curl_easy_getinfo(this->m_curl, CURLINFO_RESPONSE_CODE, &http_code);
 				if (http_code < 200 || http_code >= 300)
@@ -2541,19 +3148,210 @@ namespace ALL_AI
 			static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp)
 			{
 				size_t totalSize = size * nmemb;
-				userp->append(static_cast<char*>(contents), totalSize);
+				userp->append(static_cast<char*>(contents), totalSize);		// libcurl handle
 				return totalSize;
+			}		// API - URL
+
+			/*
+			 ============================================================================
+			 Function: DataCallbackWriter
+			 Description: libcurl write callback (data callback mode) that forwards each
+			 received chunk to the user callback. The chunk is NOT stored; the user
+			 callback's return value is passed back to libcurl (abort on mismatch)
+			 Parameters:
+			   - contents: Pointer to the received data buffer
+			   - size: Byte size of each data block
+			   - nmemb: Number of data blocks
+			   - userp: User-defined pointer; here it points to the DataCallback object
+			 Return: Returns the value returned by the user callback. If it does not match
+			 the incoming byte count, libcurl treats it as an error and aborts the transfer
+			 ============================================================================
+			*/
+			static size_t DataCallbackWriter(void* contents, size_t size, size_t nmemb, DataCallback* userp)
+			{
+				size_t total_size = size * nmemb;
+				return (*userp)(static_cast<const char*>(contents), total_size);
 			}
 
-		private:
+		private:		// API - Key
 
 			CURL* m_curl = nullptr;		// libcurl handle
 			std::mutex m_mutex_curl_request;
 
 			std::string m_url;	// API - URL
-			std::string m_key;	// API - Key
+			std::string m_key;		// API - Key
 		};
 	}
+
+	// Forward declaration of the AI class (FileGateway holds a back reference to AI)
+	class AI;
+
+	/*
+	 ============================================================================
+	 Class: FileGateway
+	 Description: File gateway (domain sub-object, a public value member of AI:
+	 ai.Files). Encapsulates the OpenAI-compatible /v1/files REST resource
+	 structure: upload / batch upload / files-to-messages / list / info /
+	 content / delete. The gateway holds NO state of its own - every target
+	 URL is passed explicitly by the caller (URLs are the user's asset;
+	 the library never stores, derives, or maps endpoint URLs)
+	 ============================================================================
+	*/
+	class FileGateway : public ThrowError {
+	public:
+
+		/*
+		 ============================================================================
+		 Function: FileGateway
+		 Description: Constructor (injected by the AI class only; no default constructor)
+		 Parameters:
+			 - AI& ai: Reference to the hosting AI object (back reference, used only
+			 to invoke the sending capability)
+		 Return: No return value
+		 ============================================================================
+		*/
+		explicit FileGateway(AI& ai) : m_ai(ai) {}
+		~FileGateway() = default;
+		FileGateway(const FileGateway&) = delete;
+		FileGateway& operator=(const FileGateway&) = delete;
+
+		/*
+		 ============================================================================
+		 Function: Upload
+		 Description: Upload a file to the file endpoint (multipart/form-data).
+		 KIMI (Moonshot) and similar stations share the OpenAI format; their
+		 purpose is usually "file-extract"
+		 Parameters:
+			 - const std::string& file_path: Local file path
+			 - const std::string& purpose: File purpose. "file-extract" for KIMI;
+			 "assistants"/"fine-tune" etc. for OpenAI
+			 - const std::string& url: Full URL of the file endpoint (required,
+			 e.g. https://api.moonshot.cn/v1/files)
+		 Return: Returns the server response json (usually containing the file id),
+		 or an empty json object on failure
+		 ============================================================================
+		*/
+		nlohmann::json Upload(const std::string& file_path,
+			const std::string& purpose,
+			const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: Upload
+		 Description: Upload a file to the file endpoint (FilePurpose enum overload)
+		 Parameters:
+			 - const std::string& file_path: Local file path
+			 - FileOperator::FilePurpose purpose: File purpose enum
+			 - const std::string& url: Full URL of the file endpoint (required)
+		 Return: Returns the server response json, or an empty json object on failure
+		 ============================================================================
+		*/
+		nlohmann::json Upload(const std::string& file_path,
+			FileOperator::FilePurpose purpose,
+			const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: UploadBatch
+		 Description: Upload multiple files in batch. The type of each file is detected
+		 automatically and its default purpose is derived. The failure of one file
+		 does not affect the others
+		 Parameters:
+			 - const std::vector<std::string>& file_paths: Array of local file paths
+			 - const std::string& url: Full URL of the file endpoint (required)
+		 Return: Returns an array of per-file upload results (one-to-one with the input paths)
+		 ============================================================================
+		*/
+		std::vector<FileOperator::FileUploadResult> UploadBatch(
+			const std::vector<std::string>& file_paths,
+			const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: ToMessages
+		 Description: Convert multiple files into a messages array ready for chat (high-level
+		 API, internally based on the strategy pattern). Document/audio files are uploaded
+		 (file-extract) and extracted into system messages; image files are base64-encoded
+		 into image_url content parts; video files are uploaded (purpose=video) and
+		 referenced by file ID as video_url parts; all media parts are merged into a
+		 single user message. Strategies can be customized via
+		 FileStrategyFactory::RegisterStrategy
+		 Parameters:
+			 - const std::vector<std::string>& file_paths: Array of local file paths
+			 - const std::string& url: Full URL of the file endpoint (required; all uploads
+			 inside the strategies go through this URL)
+		 Return: Returns the messages array. It is recommended to append the user question
+		 to the end of this array before starting the chat
+		 ============================================================================
+		*/
+		nlohmann::json ToMessages(const std::vector<std::string>& file_paths,
+			const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: List
+		 Description: Get the list of uploaded files (OpenAI-compatible GET /v1/files)
+		 Parameters:
+			 - const std::string& url: Full URL of the file endpoint (required)
+		 Return: Returns the server response json, or an empty json object on failure
+		 ============================================================================
+		*/
+		nlohmann::json List(const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: Info
+		 Description: Get detailed information about a file (GET /v1/files/{file_id})
+		 Parameters:
+			 - const std::string& file_id: File ID (the id returned by the server when uploading)
+			 - const std::string& url: Full URL of the file endpoint (required)
+		 Return: Returns the server response json, or an empty json object on failure
+		 ============================================================================
+		*/
+		nlohmann::json Info(const std::string& file_id, const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: Content
+		 Description: Get the content of a file (GET /v1/files/{file_id}/content).
+		 KIMI (Moonshot) returns the extracted text for files uploaded with purpose
+		 "file-extract"; the raw string is returned here and the caller decides
+		 whether to parse it
+		 Parameters:
+			 - const std::string& file_id: File ID (the id returned by the server when uploading)
+			 - const std::string& url: Full URL of the file endpoint (required)
+		 Return: Returns the raw response string, or an empty string on failure
+		 ============================================================================
+		*/
+		std::string Content(const std::string& file_id, const std::string& url);
+
+		/*
+		 ============================================================================
+		 Function: Delete
+		 Description: Delete a file (DELETE /v1/files/{file_id})
+		 Parameters:
+			 - const std::string& file_id: File ID (the id returned by the server when uploading)
+			 - const std::string& url: Full URL of the file endpoint (required)
+		 Return: Returns the server response json, or an empty json object on failure
+		 ============================================================================
+		*/
+		nlohmann::json Delete(const std::string& file_id, const std::string& url);
+
+	private:
+		/*
+		 ============================================================================
+		 Function: ParseRawToJson
+		 Description: Parse a raw response string into a JSON object (internal helper). On
+		 parse failure the error is handled according to the configured error mode
+		 ============================================================================
+		*/
+		// Note: all FileGateway errors are reported through m_ai.DoErrorThrow so that the
+		// error mode configured on the AI object applies (the gateway itself holds no
+		// error configuration)
+		nlohmann::json ParseRawToJson(const std::string& raw);
+
+		AI& m_ai;		// Hosting AI reference (the gateway itself is stateless)
+	};
 
 	class AI : public ThrowError {
 	public:
@@ -2567,7 +3365,7 @@ namespace ALL_AI
 		 Return: No return value
 		 ============================================================================
 		*/
-		explicit AI() {};
+		explicit AI() : Files(*this) {};
 
 		/*
 		 ============================================================================
@@ -2585,12 +3383,17 @@ namespace ALL_AI
 			const std::string& url,
 			const std::string& api_key,
 			const ALL_AI_ErrorThrow all_ai_error_throw = ALL_AI_ErrorThrow::ALL_AI_NO_ERROR_THROW) :
+			Files(*this),
 			m_transport(std::move(transport)),
 			m_url(url),
 			m_api_key(api_key)
 		{
 			this->m_error_throw_method = all_ai_error_throw;
 		}
+
+		// Domain sub-object: file gateway (public value member, shares the AI lifetime;
+		// stateless itself - every URL is passed explicitly by the caller)
+		FileGateway Files;
 
 		/*
 		 ============================================================================
@@ -2655,9 +3458,11 @@ namespace ALL_AI
 		 Function: SetHttpTransport
 		 Description: Set the HTTP transport interface
 		 Parameters:
-			 - std::shared_ptr<IHttpTransport>: The HTTP transport implementation to use
+			 -
+		 Return:
 		 Return: No return value
 		 ============================================================================
+				 - std::shared_ptr<IHttpTransport>: The HTTP transport implementation to use
 		*/
 		void SetHttpTransport(std::shared_ptr<IHttpTransport> transport)
 		{
@@ -2691,20 +3496,22 @@ namespace ALL_AI
 			return false;
 #endif
 
-			// If AI has already been initialized, return false to avoid repeated initialization
+
+			// If already initialized, return false directly, indicating that repeated initialization is not needed
+			// If the URL, API key, or HTTP transport interface is not set, handle the error according to the error mode and return false
 			if (this->m_initialized == true ||
 				this->m_url.empty() || this->m_api_key.empty() || this->m_transport == nullptr)
 			{
 				DoErrorThrow("The API station URL, API key, or HTTP transmission interface is empty. Please check the configuration");
 				return false;
 			}
-			// Set the error handling mode for the builder and parser
+			// Set the error handling mode for the builder
 			if (this->m_error_throw_method == ALL_AI_ErrorThrow::ALL_AI_CALLBACK_FUNCTION &&
 				this->m_callback_function != nullptr)
 			{
-				// Builder/Parser already have internal locks
+				// No lock is needed here because InitAI does not run concurrently with SendRequest
+				// (guaranteed by the user or the m_initialized flag), and the Builder has an internal lock
 				this->m_builder.SetThrowErrorCallbackFunction(this->m_callback_function);
-				this->m_parser.SetThrowErrorCallbackFunction(this->m_callback_function);
 			}
 
 			// Initialize the HTTP transport interface (m_mutex_config is already held, no need to lock again)
@@ -2783,8 +3590,6 @@ namespace ALL_AI
 				return nlohmann::json{};
 			}
 
-			// SendRequest is thread-safe here because CurlHttpTransport is already protected by a lock
-			// Parse is also thread-safe here because JsonResponceParser is already protected by a lock
 			nlohmann::json result = transport_local->SendRequest(method, request_json);
 			return result;
 		}
@@ -2849,23 +3654,134 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: UploadFile
-		 Description: Upload a file to the file endpoint of the API station (OpenAI-compatible
-					 /v1/files endpoint, multipart/form-data). KIMI (Moonshot) and similar stations
-					 share the OpenAI format; their purpose is usually "file-extract"
+		 Function: SetDataCallback
+		 Description: Set a data callback: subsequent requests deliver response chunks to
+		 the callback instead of collecting them (for binary responses such as TTS audio
+		 streams, SSE, or large downloads). Pass an empty DataCallback (or call
+		 ClearDataCallback) to restore the default collect-and-parse behavior.
+		 The callback is a user asset; the library never inspects the delivered data
 		 Parameters:
-			 - const std::string& file_path: Local file path
-			 - const std::string& purpose: File purpose. "file-extract" for KIMI; "assistants"/"fine-tune"
-				 etc. for OpenAI. Defaults to "file-extract"
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL (see MakeFilesURL)
-		 Return: Returns a nlohmann::json object representing the server response (usually containing
-				 the file id). If the request fails or the response is invalid, an empty object is returned
+			 - DataCallback data_callback: Data callback (empty restores the default behavior)
+		 Return: No return value
 		 ============================================================================
 		*/
-		nlohmann::json UploadFile(const std::string& file_path,
-			const std::string& purpose = "file-extract",
-			const std::string& files_url = "")
+		void SetDataCallback(DataCallback data_callback)
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_config);
+			this->m_data_callback = std::move(data_callback);
+			return;
+		}
+
+		/*
+		 ============================================================================
+		 Function: ClearDataCallback
+		 Description: Clear the data callback and restore the default
+		 collect-and-parse behavior
+		 Parameters:
+			 - None: No parameters
+		 Return: No return value
+		 ============================================================================
+		*/
+		void ClearDataCallback()
+		{
+			std::lock_guard<std::mutex> lock(this->m_mutex_config);
+			this->m_data_callback = nullptr;
+			return;
+		}
+
+		/*
+		 ============================================================================
+		 Function: SendRequestRaw
+		 Description: Send a plain HTTP request to an arbitrary URL and return the raw
+		 response string (no JSON parsing). If a data callback is set, the response
+		 is delivered chunk by chunk to the callback and an empty string is returned.
+		 This is the mechanism layer for all special endpoints (file management,
+		 TTS, etc.); the URL is always passed explicitly by the caller
+		 Parameters:
+			 - HttpMethod method: HTTP method
+			 - const std::string& url: Full URL of the request
+		 Return: Returns the raw response string (empty when a callback is set),
+		 or an empty string on failure
+		 ============================================================================
+		*/
+		std::string SendRequestRaw(HttpMethod method, const std::string& url)
+		{
+			std::shared_ptr<IHttpTransport> transport_local;
+			DataCallback callback_local;
+			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_config);
+				transport_local = this->m_transport;
+				callback_local = this->m_data_callback;
+			}
+
+			// If the HTTP transport is not set, handle the error according to the configured error mode
+			if (!transport_local)
+			{
+				DoErrorThrow("AI: HTTP transport is not set");
+				return std::string{};
+			}
+
+			if (callback_local)
+			{
+				return transport_local->SendRequestRaw(method, url, nullptr, callback_local);
+			}
+			return transport_local->SendRequestRaw(method, url);
+		}
+
+		/*
+		 ============================================================================
+		 Function: SendRequestRaw
+		 Description: Send a plain HTTP request with a JSON request body (overload,
+		 required by endpoints such as TTS). If a data callback is set, the response
+		 is delivered chunk by chunk to the callback and an empty string is returned
+		 Parameters:
+			 - HttpMethod method: HTTP method
+			 - const std::string& url: Full URL of the request
+			 - const nlohmann::json& body: JSON request body
+		 Return: Returns the raw response string (empty when a callback is set),
+		 or an empty string on failure
+		 ============================================================================
+		*/
+		std::string SendRequestRaw(HttpMethod method, const std::string& url, const nlohmann::json& body)
+		{
+			std::shared_ptr<IHttpTransport> transport_local;
+			DataCallback callback_local;
+			{
+				std::lock_guard<std::mutex> lock(this->m_mutex_config);
+				transport_local = this->m_transport;
+				callback_local = this->m_data_callback;
+			}
+
+			if (!transport_local)
+			{
+				DoErrorThrow("AI: HTTP transport is not set");
+				return std::string{};
+			}
+
+			return transport_local->SendRequestRaw(method, url, &body, callback_local);
+		}
+
+		/*
+		 ============================================================================
+		 Function: SendMultipartRequest
+		 Description: Send a multipart/form-data request (file upload or fields-only form).
+		 This is the mechanism layer for all upload-like special endpoints (file upload,
+		 speech-to-text, voice clone, etc.); the URL and the form fields are always
+		 passed explicitly by the caller (the library does not presume field names)
+		 Parameters:
+			 - const std::string& url: Full URL of the request
+			 - const std::string& file_path: Local file path; empty means a fields-only
+			 multipart request (no file attached)
+			 - const std::string& file_field_name: Name of the file field in the form
+			 ("file" for OpenAI-compatible APIs)
+			 - const std::unordered_map<std::string, std::string>& form_fields: Additional form fields
+		 Return: Returns the server response json, or an empty json object on failure
+		 ============================================================================
+		*/
+		nlohmann::json SendMultipartRequest(const std::string& url,
+			const std::string& file_path,
+			const std::string& file_field_name,
+			const std::unordered_map<std::string, std::string>& form_fields)
 		{
 			std::shared_ptr<IHttpTransport> transport_local;
 			{
@@ -2873,221 +3789,13 @@ namespace ALL_AI
 				transport_local = this->m_transport;
 			}
 
-			// If the HTTP transport is not set, handle the error according to the configured error mode
 			if (!transport_local)
 			{
 				DoErrorThrow("AI: HTTP transport is not set");
 				return nlohmann::json{};
 			}
 
-			// Derive the file endpoint URL
-			std::string target_url = MakeFilesURL(files_url);
-			if (target_url.empty())
-			{
-				return nlohmann::json{};
-			}
-
-			// Build the form fields and send the multipart request
-			std::unordered_map<std::string, std::string> form_fields;
-			form_fields["purpose"] = purpose;
-			nlohmann::json result = transport_local->SendMultipartRequest(target_url, file_path, "file", form_fields);
-			return result;
-		}
-
-		/*
-		 ============================================================================
-		 Function: UploadFile
-		 Description: Upload a file to the file endpoint (FilePurpose enum overload)
-		 Parameters:
-			 - const std::string& file_path: Local file path
-			 - FileOperator::FilePurpose purpose: File purpose enum
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL
-		 Return: Returns a nlohmann::json object representing the server response.
-				 If the request fails or the response is invalid, an empty object is returned
-		 ============================================================================
-		*/
-		nlohmann::json UploadFile(const std::string& file_path,
-			FileOperator::FilePurpose purpose,
-			const std::string& files_url = "")
-		{
-			return UploadFile(file_path, FileOperator::FileTypeDetector::PurposeToString(purpose), files_url);
-		}
-
-		/*
-		 ============================================================================
-		 Function: UploadFiles
-		 Description: Upload multiple files in batch. The type of each file is detected automatically
-					 and its default purpose is derived. The failure of one file does not affect the others
-		 Parameters:
-			 - const std::vector<std::string>& file_paths: Array of local file paths
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL
-		 Return: Returns an array of per-file upload results (one-to-one with the input paths)
-		 ============================================================================
-		*/
-		std::vector<FileOperator::FileUploadResult> UploadFiles(const std::vector<std::string>& file_paths,
-			const std::string& files_url = "")
-		{
-			std::vector<FileOperator::FileUploadResult> results;
-			results.reserve(file_paths.size());
-
-			for (const std::string& file_path : file_paths)
-			{
-				FileOperator::FileUploadResult upload_result;
-				upload_result.file_path = file_path;
-				upload_result.file_type = FileOperator::FileTypeDetector::DetectFileType(file_path);
-
-				FileOperator::FilePurpose purpose =
-					FileOperator::FileTypeDetector::GetDefaultPurpose(upload_result.file_type);
-				upload_result.raw_response = UploadFile(file_path, purpose, files_url);
-
-				// Extract the file ID safely to determine whether the upload succeeded
-				if (upload_result.raw_response.is_object() &&
-					upload_result.raw_response.contains("id") &&
-					upload_result.raw_response["id"].is_string())
-				{
-					upload_result.file_id = upload_result.raw_response["id"].get<std::string>();
-					upload_result.success = true;
-				}
-
-				results.push_back(std::move(upload_result));
-			}
-
-			return results;
-		}
-
-		/*
-		 ============================================================================
-		 Function: FilesToMessages
-		 Description: Convert multiple files into a messages array ready for chat (high-level API,
-					 internally based on the strategy pattern):
-					 document/audio files: uploaded (file-extract) and extracted into system messages;
-					 image files: base64-encoded into image_url content parts;
-					 video files: uploaded (purpose=video) and referenced by file ID as video_url parts;
-					 all media parts are finally merged into a single user message.
-					 The per-type strategies can be customized via FileStrategyFactory::RegisterStrategy
-		 Parameters:
-			 - const std::vector<std::string>& file_paths: Array of local file paths
-		 Return: Returns the messages array. It is recommended to append the user question to the
-				 end of this array before starting the chat
-		 ============================================================================
-		*/
-		nlohmann::json FilesToMessages(const std::vector<std::string>& file_paths);
-
-		/*
-		 ============================================================================
-		 Function: GetFileList
-		 Description: Get the list of files uploaded to the API station
-					 (OpenAI-compatible GET /v1/files endpoint)
-		 Parameters:
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL
-		 Return: Returns a nlohmann::json object representing the server response.
-				 If the request fails or the response is invalid, an empty object is returned
-		 ============================================================================
-		*/
-		nlohmann::json GetFileList(const std::string& files_url = "")
-		{
-			std::string target_url = MakeFilesURL(files_url);
-			if (target_url.empty())
-			{
-				return nlohmann::json{};
-			}
-
-			std::string str_result = SendFileRawRequest(HttpMethod::GET, target_url);
-			nlohmann::json result = ParseRawToJson(str_result);
-			return result;
-		}
-
-		/*
-		 ============================================================================
-		 Function: GetFileInfo
-		 Description: Get detailed information about a specific file
-					 (OpenAI-compatible GET /v1/files/{file_id} endpoint)
-		 Parameters:
-			 - const std::string& file_id: File ID (the id returned by the server when uploading)
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL
-		 Return: Returns a nlohmann::json object representing the server response.
-				 If the request fails or the response is invalid, an empty object is returned
-		 ============================================================================
-		*/
-		nlohmann::json GetFileInfo(const std::string& file_id, const std::string& files_url = "")
-		{
-			std::string target_url = MakeFilesURL(files_url);
-			if (target_url.empty() || file_id.empty())
-			{
-				if (file_id.empty())
-				{
-					DoErrorThrow("AI: file_id is empty");
-				}
-				return nlohmann::json{};
-			}
-
-			std::string str_result = SendFileRawRequest(HttpMethod::GET, target_url + "/" + file_id);
-			nlohmann::json result = ParseRawToJson(str_result);
-			return result;
-		}
-
-		/*
-		 ============================================================================
-		 Function: GetFileContent
-		 Description: Get the content of a specific file
-					 (OpenAI-compatible GET /v1/files/{file_id}/content endpoint).
-					 For files uploaded with purpose "file-extract", KIMI (Moonshot) returns the
-					 extracted text content; the response is usually a JSON string (with a content
-					 field). The raw string is returned here and the caller decides whether to parse it
-		 Parameters:
-			 - const std::string& file_id: File ID (the id returned by the server when uploading)
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL
-		 Return: Returns the raw response string, or an empty string on failure
-		 ============================================================================
-		*/
-		std::string GetFileContent(const std::string& file_id, const std::string& files_url = "")
-		{
-			std::string target_url = MakeFilesURL(files_url);
-			if (target_url.empty() || file_id.empty())
-			{
-				if (file_id.empty())
-				{
-					DoErrorThrow("AI: file_id is empty");
-				}
-				return std::string{};
-			}
-
-			return SendFileRawRequest(HttpMethod::GET, target_url + "/" + file_id + "/content");
-		}
-
-		/*
-		 ============================================================================
-		 Function: DeleteFile
-		 Description: Delete a specific file on the API station
-					 (OpenAI-compatible DELETE /v1/files/{file_id} endpoint)
-		 Parameters:
-			 - const std::string& file_id: File ID (the id returned by the server when uploading)
-			 - const std::string& files_url: Full URL of the file endpoint. If empty, it is derived
-				 automatically from the chat URL
-		 Return: Returns a nlohmann::json object representing the server response.
-				 If the request fails or the response is invalid, an empty object is returned
-		 ============================================================================
-		*/
-		nlohmann::json DeleteFile(const std::string& file_id, const std::string& files_url = "")
-		{
-			std::string target_url = MakeFilesURL(files_url);
-			if (target_url.empty() || file_id.empty())
-			{
-				if (file_id.empty())
-				{
-					DoErrorThrow("AI: file_id is empty");
-				}
-				return nlohmann::json{};
-			}
-
-			std::string str_result = SendFileRawRequest(HttpMethod::DELETE, target_url + "/" + file_id);
-			nlohmann::json result = ParseRawToJson(str_result);
-			return result;
+			return transport_local->SendMultipartRequest(url, file_path, file_field_name, form_fields);
 		}
 
 		/*
@@ -3122,25 +3830,12 @@ namespace ALL_AI
 
 		/*
 		 ============================================================================
-		 Function: GetParser
-		 Description: Get a parser
-		 Parameters:
-			 - None: No parameters
-		 Return: Returns a reference to the parser
-		 ============================================================================
-		*/
-		JsonOperator::JsonResponceParser& GetParser()
-		{
-			return this->m_parser;
-		}
-
-		/*
-		 ============================================================================
 		 Function: GetTools
 		 Description: Get the utility helper object
 		 Parameters:
 			 - None: No parameters
 		 Return: Returns a reference to the utility object, which contains commonly used JSON helper functions and can help users build requests and parse responses more conveniently
+					such as ChatTool, which help users build requests and parse responses more conveniently
 		 ============================================================================
 		*/
 		JsonOperatorTools& GetTools()
@@ -3150,113 +3845,22 @@ namespace ALL_AI
 
 	private:
 
-		/*
-		 ============================================================================
-		 Function: MakeFilesURL
-		 Description: Build the full URL of the file endpoint. If the caller explicitly provides
-					 files_url, it is used directly; otherwise it is derived from the chat URL by
-					 taking everything before "/v1" and appending "/v1/files",
-					 e.g. https://api.moonshot.cn/v1/chat/completions -> https://api.moonshot.cn/v1/files
-		 Parameters:
-			 - const std::string& files_url: File endpoint URL explicitly provided by the caller; may be empty
-		 Return: Returns the full file endpoint URL, or an empty string if derivation fails
-		 ============================================================================
-		*/
-		std::string MakeFilesURL(const std::string& files_url)
-		{
-			// The caller explicitly specified the file endpoint URL; use it directly
-			if (!files_url.empty())
-			{
-				return files_url;
-			}
-
-			std::string url_local;
-			{
-				std::lock_guard<std::mutex> lock(this->m_mutex_config);
-				url_local = this->m_url;
-			}
-
-			// Take everything before "/v1" and append "/v1/files"
-			size_t pos = url_local.find("/v1");
-			if (pos == std::string::npos)
-			{
-				DoErrorThrow("AI: cannot derive files url from chat url, please pass files_url explicitly");
-				return std::string{};
-			}
-			return url_local.substr(0, pos) + "/v1/files";
-		}
-
-		/*
-		 ============================================================================
-		 Function: SendFileRawRequest
-		 Description: Send a file-related request through the HTTP transport and return the raw
-					 response string (internal helper)
-		 Parameters:
-			 - HttpMethod method: HTTP method
-			 - const std::string& url: Full URL of the request
-		 Return: Returns the raw response string, or an empty string on failure
-		 ============================================================================
-		*/
-		std::string SendFileRawRequest(HttpMethod method, const std::string& url)
-		{
-			std::shared_ptr<IHttpTransport> transport_local;
-			{
-				std::lock_guard<std::mutex> lock(this->m_mutex_config);
-				transport_local = this->m_transport;
-			}
-
-			// If the HTTP transport is not set, handle the error according to the configured error mode
-			if (!transport_local)
-			{
-				DoErrorThrow("AI: HTTP transport is not set");
-				return std::string{};
-			}
-
-			return transport_local->SendRequestRaw(method, url);
-		}
-
-		/*
-		 ============================================================================
-		 Function: ParseRawToJson
-		 Description: Parse a raw response string into a JSON object (internal helper). On parse
-					 failure the error is handled according to the configured error mode
-		 Parameters:
-			 - const std::string& raw: Raw response string
-		 Return: Returns the parsed JSON object on success, or an empty JSON object on failure
-		 ============================================================================
-		*/
-		nlohmann::json ParseRawToJson(const std::string& raw)
-		{
-			if (raw.empty())
-			{
-				return nlohmann::json{};
-			}
-
-			try
-			{
-				return nlohmann::json::parse(raw);
-			}
-			catch (const nlohmann::json::parse_error& e)
-			{
-				std::string error_message = "Error: AI: JSON parse failed. Response: " + raw + ", Error: " + e.what();
-				DoErrorThrow(error_message);
-				return nlohmann::json{};
-			}
-		}
-
 		std::string m_url;	// API - URL
 		std::string m_api_key;	// API - Key
 
-		std::shared_ptr<IHttpTransport> m_transport;	// HTTP transport
+		std::shared_ptr<IHttpTransport> m_transport;	// HTTP transport interface
 
-		std::mutex m_mutex_config;		// Configuration mutex (protects URL, Key, and Transport)
+		// Data callback (protected by m_mutex_config): when set, response chunks are
+		// delivered to the user one by one instead of being collected
+		DataCallback m_data_callback;
+
+		std::mutex m_mutex_config;		// Configuration mutex (protects URL, Key, Transport, DataCallback)
 		std::mutex m_mutex_ai_init;		// AI initialization mutex
 
 		JsonOperator::JsonRequestBuilder m_builder;
-		JsonOperator::JsonResponceParser m_parser;
 		JsonOperatorTools m_tools;
 
-		bool m_initialized = false;	// Whether AI has been initialized
+		bool m_initialized = false;	// whether the AI has been initialized
 	};
 
 	// File processing strategies and strategy factory (Strategy pattern + Factory pattern).
@@ -3268,8 +3872,9 @@ namespace ALL_AI
 		 ============================================================================
 		 Class: IFileProcessStrategy
 		 Description: File processing strategy interface (Strategy pattern). Defines how a file is
-					 converted into chat messages / content parts, and provides helper functions
-					 shared by all concrete strategies
+		 converted into chat messages / content parts, and provides helper functions
+		 shared by all concrete strategies
+					 and provides helper functions shared by the concrete strategies
 		 ============================================================================
 		*/
 		class IFileProcessStrategy {
@@ -3284,14 +3889,16 @@ namespace ALL_AI
 			 Function: Process
 			 Description: Process a file and convert it into a chat message or content part
 			 Parameters:
-				 - AI& ai: Reference to the AI object, used to call upload / file content APIs
+				 - AI& ai: Reference to the AI object, used to call the file gateway etc.
 				 - const std::string& file_path: Local file path
+				 - const std::string& files_url: Full URL of the file endpoint (all uploads
+				 inside the strategy go through this URL)
 				 - nlohmann::json& out_messages: Output. Text content is appended as messages (e.g. system messages)
 				 - nlohmann::json& out_parts: Output. Media content is appended as content parts (e.g. image_url)
 			 Return: Returns true on success, false otherwise
 			 ============================================================================
 			*/
-			virtual bool Process(AI& ai, const std::string& file_path,
+			virtual bool Process(AI& ai, const std::string& file_path, const std::string& files_url,
 				nlohmann::json& out_messages, nlohmann::json& out_parts) = 0;
 
 		protected:
@@ -3320,10 +3927,10 @@ namespace ALL_AI
 			 ============================================================================
 			 Function: ExtractTextContent
 			 Description: Extract the file text content from the raw string returned by
-						 GetFileContent (internal helper). If the response is JSON, the content
-						 field is extracted; otherwise the raw string is returned as-is
+			 Files.Content (internal helper). If the response is JSON, the content
+			 field is extracted; otherwise the raw string is returned as-is
 			 Parameters:
-				 - const std::string& raw_content: Raw string returned by GetFileContent
+				 - const std::string& raw_content: Raw string returned by Files.Content
 			 Return: Returns the text content of the file
 			 ============================================================================
 			*/
@@ -3349,17 +3956,20 @@ namespace ALL_AI
 			/*
 			 ============================================================================
 			 Function: UploadAndGetId
-			 Description: Upload a file and extract its file ID (internal helper)
+			 Description: Upload a file through the file gateway and extract its file ID
+			 (internal helper)
 			 Parameters:
 				 - AI& ai: Reference to the AI object
 				 - const std::string& file_path: Local file path
 				 - FilePurpose purpose: File purpose
+				 - const std::string& files_url: Full URL of the file endpoint
 			 Return: Returns the file ID on success, or an empty string otherwise
 			 ============================================================================
 			*/
-			static std::string UploadAndGetId(AI& ai, const std::string& file_path, FilePurpose purpose)
+			static std::string UploadAndGetId(AI& ai, const std::string& file_path, FilePurpose purpose,
+				const std::string& files_url)
 			{
-				nlohmann::json upload_result = ai.UploadFile(file_path, purpose);
+				nlohmann::json upload_result = ai.Files.Upload(file_path, purpose, files_url);
 				return ExtractFileId(upload_result);
 			}
 		};
@@ -3368,7 +3978,7 @@ namespace ALL_AI
 		 ============================================================================
 		 Class: DocumentFileStrategy
 		 Description: Document/text file strategy: upload (file-extract) and extract the content
-					 into a system message (the file-chat approach officially recommended by KIMI)
+		 into a system message (the file-chat approach officially recommended by KIMI)
 		 ============================================================================
 		*/
 		class DocumentFileStrategy : public IFileProcessStrategy {
@@ -3378,16 +3988,15 @@ namespace ALL_AI
 				return FilePurpose::FileExtract;
 			}
 
-			virtual bool Process(AI& ai, const std::string& file_path,
-				nlohmann::json& out_messages, nlohmann::json& out_parts) override
+			virtual bool Process(AI& ai, const std::string& file_path, const std::string& files_url, nlohmann::json& out_messages, nlohmann::json& out_parts) override
 			{
-				std::string file_id = UploadAndGetId(ai, file_path, GetPurpose());
+				std::string file_id = UploadAndGetId(ai, file_path, GetPurpose(), files_url);
 				if (file_id.empty())
 				{
 					return false;
 				}
 
-				std::string text = ExtractTextContent(ai.GetFileContent(file_id));
+				std::string text = ExtractTextContent(ai.Files.Content(file_id, files_url));
 				if (text.empty())
 				{
 					return false;
@@ -3402,9 +4011,10 @@ namespace ALL_AI
 		 ============================================================================
 		 Class: ImageFileStrategy
 		 Description: Image file strategy: by default the image is base64-encoded into an
-					 image_url content part (recommended for single images); it can also be switched
-					 to uploading (purpose=image) and referencing by file ID (recommended when the
-					 image is referenced multiple times)
+		 image_url content part (recommended for single images); it can also be switched
+		 to uploading (purpose=image) and referencing by file ID (recommended when the
+		 image is referenced multiple times)
+					 It can also be switched to uploading (purpose=image) and referencing by file ID (recommended for multiple references)
 		 ============================================================================
 		*/
 		class ImageFileStrategy : public IFileProcessStrategy {
@@ -3420,6 +4030,7 @@ namespace ALL_AI
 			 Description: Set the image transport mode
 			 Parameters:
 				 - ImageTransportMode mode: Base64 - base64-encode into the message (default);
+				 UploadReference - upload and reference by file ID
 					 UploadReference - upload and reference by file ID
 			 Return: No return value
 			 ============================================================================
@@ -3430,13 +4041,12 @@ namespace ALL_AI
 				return;
 			}
 
-			virtual bool Process(AI& ai, const std::string& file_path,
-				nlohmann::json& out_messages, nlohmann::json& out_parts) override
+			virtual bool Process(AI& ai, const std::string& file_path, const std::string& files_url, nlohmann::json& out_messages, nlohmann::json& out_parts) override
 			{
 				if (this->m_mode == ImageTransportMode::UploadReference)
 				{
 					// Upload (purpose=image) and reference by file ID
-					std::string file_id = UploadAndGetId(ai, file_path, GetPurpose());
+					std::string file_id = UploadAndGetId(ai, file_path, GetPurpose(), files_url);
 					if (file_id.empty())
 					{
 						return false;
@@ -3459,18 +4069,18 @@ namespace ALL_AI
 					{"type", "image_url"},
 					{"image_url", {{"url", "data:" + mime + ";base64," + base64_data}}}
 					});
-				return true;
+				return true;		// Image transport mode
 			}
 
 		private:
-			ImageTransportMode m_mode = ImageTransportMode::Base64;	// Image transport mode
+			ImageTransportMode m_mode = ImageTransportMode::Base64;	// image transport mode
 		};
 
 		/*
 		 ============================================================================
 		 Class: VideoFileStrategy
 		 Description: Video file strategy: upload (purpose=video) and reference by file ID
-					 as a video_url content part
+		 as a video_url content part
 		 ============================================================================
 		*/
 		class VideoFileStrategy : public IFileProcessStrategy {
@@ -3480,10 +4090,10 @@ namespace ALL_AI
 				return FilePurpose::Video;
 			}
 
-			virtual bool Process(AI& ai, const std::string& file_path,
+			virtual bool Process(AI& ai, const std::string& file_path, const std::string& files_url,
 				nlohmann::json& out_messages, nlohmann::json& out_parts) override
 			{
-				std::string file_id = UploadAndGetId(ai, file_path, GetPurpose());
+				std::string file_id = UploadAndGetId(ai, file_path, GetPurpose(), files_url);
 				if (file_id.empty())
 				{
 					return false;
@@ -3500,9 +4110,11 @@ namespace ALL_AI
 		 ============================================================================
 		 Class: AudioFileStrategy
 		 Description: Audio file strategy: handled as file-extract by default (some platforms
-					 support audio transcription) and produces a system message. For other
-					 approaches (e.g. OpenAI's input_audio content part), register a custom
-					 strategy via FileStrategyFactory::RegisterStrategy to override this one
+		 support audio transcription) and produces a system message. For other
+		 approaches (e.g. OpenAI's input_audio content part), register a custom
+		 strategy via FileStrategyFactory::RegisterStrategy to override this one
+						 to generate a system message. For other approaches (e.g. OpenAI-style input_audio content parts),
+						 register a custom strategy via FileStrategyFactory::RegisterStrategy to override it
 		 ============================================================================
 		*/
 		class AudioFileStrategy : public IFileProcessStrategy {
@@ -3512,16 +4124,16 @@ namespace ALL_AI
 				return FilePurpose::FileExtract;
 			}
 
-			virtual bool Process(AI& ai, const std::string& file_path,
+			virtual bool Process(AI& ai, const std::string& file_path, const std::string& files_url,
 				nlohmann::json& out_messages, nlohmann::json& out_parts) override
 			{
-				std::string file_id = UploadAndGetId(ai, file_path, GetPurpose());
+				std::string file_id = UploadAndGetId(ai, file_path, GetPurpose(), files_url);
 				if (file_id.empty())
 				{
 					return false;
 				}
 
-				std::string text = ExtractTextContent(ai.GetFileContent(file_id));
+				std::string text = ExtractTextContent(ai.Files.Content(file_id, files_url));
 				if (text.empty())
 				{
 					return false;
@@ -3536,18 +4148,41 @@ namespace ALL_AI
 		 ============================================================================
 		 Class: FileStrategyFactory
 		 Description: File processing strategy factory (Factory pattern). Creates the strategy for
-					 a given file type. Custom strategies can be registered via RegisterStrategy to
-					 support new types or override default behavior (open-closed principle)
+		 a given file type. Custom strategies can be registered via RegisterStrategy to
+		 support new types or override default behavior (open-closed principle)
+					 Supports registering custom strategies via RegisterStrategy to extend new types or override default behavior (open-closed principle)
 		 ============================================================================
 		*/
 		class FileStrategyFactory {
+		private:
+#if __ALL_AI_CXX_VERSION >= 17L
+			// C++17 inline static members guarantee a single definition for a header-only library
+			inline static std::unordered_map<FileType, std::shared_ptr<IFileProcessStrategy>> m_custom_strategies;
+			inline static std::mutex m_mutex_custom;
+#elif __ALL_AI_CXX_VERSION >= 14L
+			// In C++14, static members need to be defined in cpp files, and only declared in header files
+			// However, a Header-Only library cannot be defined in a cpp file
+			// so a function-local static variable is used to implement the singleton pattern
+			static std::mutex& GetFSFMutex()
+			{
+				static std::mutex instance;
+				return instance;
+			}
+
+			static std::unordered_map<FileType, std::shared_ptr<IFileProcessStrategy>>& GetFSFStrategies()
+			{
+				static std::unordered_map<FileType, std::shared_ptr<IFileProcessStrategy>> instance;
+				return instance;
+			}
+#endif
+
 		public:
 
 			/*
 			 ============================================================================
 			 Function: Create
 			 Description: Create the processing strategy for a file type. User-registered custom
-						 strategies take precedence over the default ones
+			 strategies take precedence over the default ones
 			 Parameters:
 				 - FileType file_type: File type
 			 Return: Returns a shared pointer to the strategy object
@@ -3556,6 +4191,7 @@ namespace ALL_AI
 			static std::shared_ptr<IFileProcessStrategy> Create(FileType file_type)
 			{
 				// User-registered custom strategies take precedence
+#if __ALL_AI_CXX_VERSION >= 17L
 				{
 					std::lock_guard<std::mutex> lock(m_mutex_custom);
 					auto it = m_custom_strategies.find(file_type);
@@ -3564,6 +4200,17 @@ namespace ALL_AI
 						return it->second;
 					}
 				}
+#elif __ALL_AI_CXX_VERSION >= 14L
+				{
+					std::lock_guard<std::mutex> lock(GetFSFMutex());
+					std::unordered_map<FileType, std::shared_ptr<IFileProcessStrategy>>& strategies = GetFSFStrategies();
+					auto it = strategies.find(file_type);
+					if (it != strategies.end())
+					{
+						return it->second;
+					}
+				}
+#endif
 
 				switch (file_type)
 				{
@@ -3584,13 +4231,14 @@ namespace ALL_AI
 			 ============================================================================
 			 Function: RegisterStrategy
 			 Description: Register a custom strategy to replace the default strategy for a file
-						 type. Pass nullptr to restore the default strategy
+			 type. Pass nullptr to restore the default strategy
 			 Parameters:
 				 - FileType file_type: File type
 				 - std::shared_ptr<IFileProcessStrategy> strategy: Custom strategy object
 			 Return: No return value
 			 ============================================================================
 			*/
+#if __ALL_AI_CXX_VERSION >= 17L
 			static void RegisterStrategy(FileType file_type, std::shared_ptr<IFileProcessStrategy> strategy)
 			{
 				std::lock_guard<std::mutex> lock(m_mutex_custom);
@@ -3604,27 +4252,97 @@ namespace ALL_AI
 				}
 				return;
 			}
-
-		private:
-			// C++17 inline static members guarantee a single definition for a header-only library
-			inline static std::unordered_map<FileType, std::shared_ptr<IFileProcessStrategy>> m_custom_strategies;
-			inline static std::mutex m_mutex_custom;
+#elif __ALL_AI_CXX_VERSION >= 14L
+			static void RegisterStrategy(FileType file_type, std::shared_ptr<IFileProcessStrategy> strategy)
+			{
+				std::lock_guard<std::mutex> lock(GetFSFMutex());
+				std::unordered_map<FileType, std::shared_ptr<IFileProcessStrategy>>& strategies = GetFSFStrategies();
+				if (strategy == nullptr)
+				{
+					strategies.erase(file_type);
+				}
+				else
+				{
+					strategies[file_type] = std::move(strategy);
+				}
+				return;
+			}
+#endif
 		};
 	}
 
 	/*
 	 ============================================================================
-	 Function: FilesToMessages
-	 Description: Convert multiple files into a messages array ready for chat (implementation of
-				 the AI class member function). Internally, a processing strategy is selected for
-				 each file through the strategy factory
-	 Parameters:
-		 - const std::vector<std::string>& file_paths: Array of local file paths
-	 Return: Returns the messages array
+	 Function: Implementations of the FileGateway member functions (placed at the end of
+	 the file because they require the complete definitions of AI and the strategy family)
 	 ============================================================================
 	*/
-	inline nlohmann::json AI::FilesToMessages(const std::vector<std::string>& file_paths)
+	inline nlohmann::json FileGateway::Upload(const std::string& file_path,
+		const std::string& purpose,
+		const std::string& url)
 	{
+		// The URL is required: endpoints are the user's asset; the library never
+		// stores or derives them
+		if (url.empty())
+		{
+			this->m_ai.DoErrorThrow("FileGateway: url is empty, please pass the file endpoint url explicitly");
+			return nlohmann::json{};
+		}
+
+		// Build the form fields and send the multipart request
+		std::unordered_map<std::string, std::string> form_fields;
+		form_fields["purpose"] = purpose;
+		return this->m_ai.SendMultipartRequest(url, file_path, "file", form_fields);
+	}
+
+	inline nlohmann::json FileGateway::Upload(const std::string& file_path,
+		FileOperator::FilePurpose purpose,
+		const std::string& url)
+	{
+		return Upload(file_path, FileOperator::FileTypeDetector::PurposeToString(purpose), url);
+	}
+
+	inline std::vector<FileOperator::FileUploadResult> FileGateway::UploadBatch(
+		const std::vector<std::string>& file_paths,
+		const std::string& url)
+	{
+		std::vector<FileOperator::FileUploadResult> results;
+		results.reserve(file_paths.size());
+
+		for (const std::string& file_path : file_paths)
+		{
+			FileOperator::FileUploadResult upload_result;
+			upload_result.file_path = file_path;
+			upload_result.file_type = FileOperator::FileTypeDetector::DetectFileType(file_path);
+
+			FileOperator::FilePurpose purpose =
+				FileOperator::FileTypeDetector::GetDefaultPurpose(upload_result.file_type);
+			upload_result.raw_response = Upload(file_path, purpose, url);
+
+			// Extract the file ID safely to determine whether the upload succeeded
+			if (upload_result.raw_response.is_object() &&
+				upload_result.raw_response.contains("id") &&
+				upload_result.raw_response["id"].is_string())
+			{
+				upload_result.file_id = upload_result.raw_response["id"].get<std::string>();
+				upload_result.success = true;
+			}
+
+			results.push_back(std::move(upload_result));
+		}
+
+		return results;
+	}
+
+	inline nlohmann::json FileGateway::ToMessages(const std::vector<std::string>& file_paths,
+		const std::string& url)
+	{
+		if (url.empty())
+		{
+			this->m_ai.DoErrorThrow("FileGateway: url is empty, please pass the file endpoint url explicitly");
+			return nlohmann::json::array();
+		}
+
 		nlohmann::json messages = nlohmann::json::array();
 		nlohmann::json media_parts = nlohmann::json::array();
 
@@ -3634,9 +4352,9 @@ namespace ALL_AI
 			std::shared_ptr<FileOperator::IFileProcessStrategy> strategy =
 				FileOperator::FileStrategyFactory::Create(file_type);
 
-			if (strategy == nullptr || !strategy->Process(*this, file_path, messages, media_parts))
+			if (strategy == nullptr || !strategy->Process(this->m_ai, file_path, url, messages, media_parts))
 			{
-				DoErrorThrow("AI: failed to process file: " + file_path);
+				this->m_ai.DoErrorThrow("FileGateway: failed to process file: " + file_path);
 			}
 		}
 
@@ -3648,10 +4366,164 @@ namespace ALL_AI
 
 		return messages;
 	}
+
+	inline nlohmann::json FileGateway::List(const std::string& url)
+	{
+		if (url.empty())
+		{
+			this->m_ai.DoErrorThrow("FileGateway: url is empty, please pass the file endpoint url explicitly");
+			return nlohmann::json{};
+		}
+
+		std::string str_result = this->m_ai.SendRequestRaw(HttpMethod::GET, url);
+		return ParseRawToJson(str_result);
+	}
+
+	inline nlohmann::json FileGateway::Info(const std::string& file_id, const std::string& url)
+	{
+		if (url.empty() || file_id.empty())
+		{
+			if (file_id.empty())
+			{
+				this->m_ai.DoErrorThrow("FileGateway: file_id is empty");
+			}
+			if (url.empty())
+			{
+				this->m_ai.DoErrorThrow("FileGateway: url is empty, please pass the file endpoint url explicitly");
+			}
+			return nlohmann::json{};
+		}
+
+		std::string str_result = this->m_ai.SendRequestRaw(HttpMethod::GET, url + "/" + file_id);
+		return ParseRawToJson(str_result);
+	}
+
+	inline std::string FileGateway::Content(const std::string& file_id, const std::string& url)
+	{
+		if (url.empty() || file_id.empty())
+		{
+			if (file_id.empty())
+			{
+				this->m_ai.DoErrorThrow("FileGateway: file_id is empty");
+			}
+			if (url.empty())
+			{
+				this->m_ai.DoErrorThrow("FileGateway: url is empty, please pass the file endpoint url explicitly");
+			}
+			return std::string{};
+		}
+
+		return this->m_ai.SendRequestRaw(HttpMethod::GET, url + "/" + file_id + "/content");
+	}
+
+	inline nlohmann::json FileGateway::Delete(const std::string& file_id, const std::string& url)
+	{
+		if (url.empty() || file_id.empty())
+		{
+			if (file_id.empty())
+			{
+				this->m_ai.DoErrorThrow("FileGateway: file_id is empty");
+			}
+			if (url.empty())
+			{
+				this->m_ai.DoErrorThrow("FileGateway: url is empty, please pass the file endpoint url explicitly");
+			}
+			return nlohmann::json{};
+		}
+
+		std::string str_result = this->m_ai.SendRequestRaw(HttpMethod::DELETE, url + "/" + file_id);
+		return ParseRawToJson(str_result);
+	}
+
+	inline nlohmann::json FileGateway::ParseRawToJson(const std::string& raw)
+	{
+		if (raw.empty())
+		{
+			return nlohmann::json{};
+		}
+
+		try
+		{
+			return nlohmann::json::parse(raw);
+		}
+		catch (const nlohmann::json::parse_error& e)
+		{
+			std::string error_message = "Error: FileGateway: JSON parse failed. Response: " + raw + ", Error: " + e.what();
+			this->m_ai.DoErrorThrow(error_message);
+			return nlohmann::json{};
+		}
+	}
+
+	/*
+	 ============================================================================
+	 Function: UploadFile / UploadFiles / FilesToMessages
+	                  GetFileList / GetFileInfo / GetFileContent / DeleteFile
+	 Description: Free-function spellings (one-line forwarders to the corresponding
+	 ai.Files members), for users who prefer a flat style. The two styles can be
+	 mixed freely; there is no duplicated implementation
+	 Example: auto up = ALL_AI::UploadFile(ai, "a.txt", "file-extract", files_url);
+	 ============================================================================
+	*/
+	inline nlohmann::json UploadFile(AI& ai, const std::string& file_path,
+		const std::string& purpose,
+		const std::string& url)
+	{
+		return ai.Files.Upload(file_path, purpose, url);
+	}
+
+	inline std::vector<FileOperator::FileUploadResult> UploadFiles(AI& ai,
+		const std::vector<std::string>& file_paths,
+		const std::string& url)
+	{
+		return ai.Files.UploadBatch(file_paths, url);
+	}
+
+	inline nlohmann::json FilesToMessages(AI& ai,
+		const std::vector<std::string>& file_paths,
+		const std::string& url)
+	{
+		return ai.Files.ToMessages(file_paths, url);
+	}
+
+	inline nlohmann::json GetFileList(AI& ai, const std::string& url)
+	{
+		return ai.Files.List(url);
+	}
+
+	inline nlohmann::json GetFileInfo(AI& ai, const std::string& file_id, const std::string& url)
+	{
+		return ai.Files.Info(file_id, url);
+	}
+
+	inline std::string GetFileContent(AI& ai, const std::string& file_id, const std::string& url)
+	{
+		return ai.Files.Content(file_id, url);
+	}
+
+	inline nlohmann::json DeleteFile(AI& ai, const std::string& file_id, const std::string& url)
+	{
+		return ai.Files.Delete(file_id, url);
+	}
+
 }
 
 #define ALL_AI_TOOL_MESSAGE_ROLE_USER		(ALL_AI::JsonOperatorTools::Role::User)
 #define ALL_AI_TOOL_MESSAGE_ROLE_ASSISTANT	(ALL_AI::JsonOperatorTools::Role::Assistant)
 #define ALL_AI_TOOL_MESSAGE_ROLE_SYSTEM		(ALL_AI::JsonOperatorTools::Role::System)
+
+// undef __ALL_AI_CXX_STANDARD
+#ifdef __ALL_AI_CXX_STANDARD
+#undef __ALL_AI_CXX_STANDARD
+#endif
+
+// undef __ALL_AI_CXX_VERSION
+#ifdef __ALL_AI_CXX_VERSION
+#undef __ALL_AI_CXX_VERSION
+#endif
+
+// undef __ALL_AI_SYSTEM_MARKER
+#ifdef __ALL_AI_SYSTEM_MARKER
+#undef __ALL_AI_SYSTEM_MARKER
+#endif
 
 #endif

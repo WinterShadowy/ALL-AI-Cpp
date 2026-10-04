@@ -4,12 +4,10 @@
 using namespace std;
 
 std::string url = "YOUR_URL";
-std::string api_key = "YOUR_API_KEY";
+std::string api_key = "YOUR_API_KEY";	// 替换为你自己的API Key
 
 int main()
 {
-	// 使用构建器示例
-
 	ALL_AI::AI ai(std::make_shared<ALL_AI::HttpTransport::CurlHttpTransport>(),
 		url,
 		api_key,
@@ -26,7 +24,7 @@ int main()
 
 	ai.GetBuilder().CreateArray("messages", "array");
 
-	// 增加
+	// 向数组中添加元素
 	for (int i = 0; i < 3; i++)
 	{
 		ai.GetBuilder().ArrayPushBack(i + 1, "messages", "array");
@@ -36,23 +34,23 @@ int main()
 		ai.GetBuilder().ArrayPushFront(i + 10, "messages", "array");
 	}
 	ai.GetBuilder().ArrayInsert(1, 66, "messages", "array");
-	std::cout << "请求数据(add)\n" << ai.GetBuilder().BuilderToJson().dump(2) << std::endl;
+	std::cout << "Request data(add)\n" << ai.GetBuilder().BuilderToJson().dump(2) << std::endl;
 
-	// 删除
+	// 从数组中删除元素
 	ai.GetBuilder().ArrayDeleteBack("messages", "array");
 	ai.GetBuilder().ArrayDeleteFront("messages", "array");
 	ai.GetBuilder().ArrayDelete(2, "messages", "array");
-	std::cout << "请求数据(delete)\n" << ai.GetBuilder().BuilderToJson().dump(2) << std::endl;
+	std::cout << "Request data(delete)\n" << ai.GetBuilder().BuilderToJson().dump(2) << std::endl;
 
-	// 获取
-	std::cout << "获取数组元素(messages): " << ai.GetBuilder().GetArrayFront<int>("messages", "array").value() << std::endl;
-	std::cout << "获取数组元素(messages): " << ai.GetBuilder().GetArrayBack<int>("messages", "array").value() << std::endl;
-	std::cout << "获取数组元素(messages): " << ai.GetBuilder().GetArrayValue<int>(2, "messages", "array").value() << std::endl;
-	std::cout << "获取数组长度(messages): " << ai.GetBuilder().GetArrayLength("messages", "array") << std::endl;
+	// 查询数组中的元素
+	std::cout << "Retrieve array elements(messages): " << ai.GetBuilder().GetArrayFront<int>("messages", "array").value() << std::endl;
+	std::cout << "Retrieve array elements(messages): " << ai.GetBuilder().GetArrayBack<int>("messages", "array").value() << std::endl;
+	std::cout << "Retrieve array elements(messages): " << ai.GetBuilder().GetArrayValue<int>(2, "messages", "array").value() << std::endl;
+	std::cout << "Retrieve array length(messages): " << ai.GetBuilder().GetArrayLength("messages", "array") << std::endl;
 
-	// 清除
+	// 清空数组
 	ai.GetBuilder().ClearArray("messages", "array");
-	std::cout << "请求数据(clear)\n" << ai.GetBuilder().BuilderToJson().dump(2) << std::endl;
+	std::cout << "Request data(clear)\n" << ai.GetBuilder().BuilderToJson().dump(2) << std::endl;
 
 	return 0;
 }

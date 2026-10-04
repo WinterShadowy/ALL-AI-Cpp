@@ -1,0 +1,17 @@
+# ===== 编辑器与IDE =====
+.vscode/
+
+# ===== 测试运行产物 =====
+# TTS Demo 运行时生成的输出文件，每次运行都会变化，不入库
+Demo/TestFiles/TtsOutput.mp3
+
+# ===== C++ 构建产物 =====
+build/
+out/
+*.o
+*.obj
+*.exe
+*.a
+*.lib
+*.so
+*.dll
